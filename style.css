@@ -2459,10 +2459,10 @@ body.on-fishing-screen.keyboard-open .app-shell {
   transform: translateX(-50%) translateY(-4px);
 }
 
-/* 상단 좌측 / 중앙 / 우측 HUD 오버레이 (카메라 홀만 피해서 위로 바짝 올림) */
+/* 상단 좌측 / 중앙 / 우측 HUD 오버레이 (상단으로 바짝 올림) */
 .fishing-top-left {
   position: absolute;
-  top: max(14px, calc(env(safe-area-inset-top, 0px) + 10px));
+  top: max(6px, calc(env(safe-area-inset-top, 0px) + 4px));
   left: 10px;
   z-index: 45;
   display: flex;
@@ -2504,24 +2504,24 @@ body.on-fishing-screen.keyboard-open .app-shell {
 }
 
 .fishing-exit-btn {
-  padding: 5px 9px;
-  border-radius: 10px;
-  background: rgba(255, 255, 255, 0.92);
+  padding: 7px 14px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.95);
   color: #1e1b18;
-  border: 2px solid var(--game-border);
-  font-size: 0.72rem;
+  border: 2.2px solid var(--game-border);
+  font-size: 0.86rem;
   font-weight: 900;
   cursor: pointer;
   box-shadow: 0 2px 0 var(--game-border);
 }
 
 .fishing-sound-mini-btn {
-  width: 28px;
-  height: 28px;
+  width: 34px;
+  height: 34px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.92);
-  border: 2px solid var(--game-border);
-  font-size: 0.78rem;
+  background: rgba(255, 255, 255, 0.95);
+  border: 2.2px solid var(--game-border);
+  font-size: 0.92rem;
   display: flex;
   align-items: center;
   justify-content: center;
@@ -2542,7 +2542,7 @@ body.on-fishing-screen.keyboard-open .app-shell {
 
 .fishing-top-center {
   position: absolute;
-  top: max(46px, calc(env(safe-area-inset-top, 0px) + 38px));
+  top: max(30px, calc(env(safe-area-inset-top, 0px) + 24px));
   left: 50%;
   transform: translateX(-50%);
   z-index: 45;
@@ -2577,8 +2577,8 @@ body.on-fishing-screen.keyboard-open .app-shell {
 
 .fishing-right-column {
   position: absolute;
-  top: max(14px, calc(env(safe-area-inset-top, 0px) + 10px));
-  max-height: calc(100% - 28px);
+  top: max(6px, calc(env(safe-area-inset-top, 0px) + 4px));
+  max-height: calc(100% - 16px);
   right: 10px;
   z-index: 45;
   width: clamp(114px, 30vw, 146px);
@@ -3274,30 +3274,40 @@ body.on-fishing-screen.keyboard-open .fishing-chat-log {
 .quick-items-bar {
   display: flex;
   flex-wrap: wrap;
-  gap: 5px;
+  gap: 6px;
   justify-content: center;
-  padding: 5px 8px;
-  background: rgba(15, 23, 42, 0.75);
-  border-radius: 10px;
-  border: 1.5px solid #334155;
+  padding: 7px 8px;
+  background: linear-gradient(135deg, #fef9c3, #fde68a);
+  border-radius: 12px;
+  border: 2.5px solid #1e1b18;
+  box-shadow: 0 3px 0 #1e1b18;
 }
 
 .quick-item-btn {
-  padding: 4px 8px;
-  border-radius: 8px;
-  border: 1.5px solid #38bdf8;
-  background: #1e293b;
-  color: #f8fafc;
-  font-size: 0.7rem;
-  font-weight: 800;
+  padding: 6px 11px;
+  border-radius: 10px;
+  border: 2.2px solid #1e1b18;
+  background: #ffffff;
+  color: #1e1b18;
+  font-size: 0.8rem;
+  font-weight: 900;
   cursor: pointer;
+  box-shadow: 0 2px 0 #1e1b18;
+  transition: transform 0.08s ease;
+}
+
+.quick-item-btn:active:not(:disabled) {
+  transform: translateY(2px);
+  box-shadow: 0 0 0 #1e1b18;
 }
 
 .quick-item-btn:disabled,
 .quick-item-btn.is-used {
-  opacity: 0.42;
+  opacity: 0.45;
   cursor: not-allowed;
-  border-color: #475569;
+  background: #e2e8f0;
+  border-color: #64748b;
+  box-shadow: none;
 }
 
 .room-edit-select {

@@ -158,7 +158,7 @@
   <style>
     .hidden, [hidden] { display: none !important; }
   </style>
-  <link rel="stylesheet" href="style.css?v=20.5" />
+  <link rel="stylesheet" href="style.css?v=20.6" />
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 </head>
@@ -215,7 +215,12 @@
           <span id="headerCdCount">100</span>
         </div>
         <button class="header-btn" id="openSettingsBtn" onclick="openModal('settingsModal')" title="설정">⚙️</button>
-        <button class="header-btn" id="exitAppHeaderBtn" onclick="confirmAppExitFromHeader()" title="종료">🚪</button>
+        <button class="header-btn" id="exitAppHeaderBtn" onclick="confirmAppExitFromHeader()" title="종료" aria-label="종료">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" aria-hidden="true">
+            <path d="M12 3v9"></path>
+            <path d="M18.36 6.64a9 9 0 1 1-12.73 0"></path>
+          </svg>
+        </button>
       </div>
     </header>
 
@@ -1777,11 +1782,11 @@
     <div id="pwa-ios-arrow" style="display: none; position: absolute; bottom: -8px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 8px solid transparent; border-right: 8px solid transparent; border-top: 8px solid #38bdf8;"></div>
   </div>
 
-  <script defer src="data.js?v=20.5"></script>
-  <script defer src="pixel_avatar.js?v=20.5"></script>
-  <script defer src="online.js?v=20.5"></script>
-  <script defer src="fishing.js?v=20.5"></script>
-  <script defer src="app.js?v=20.5"></script>
+  <script defer src="data.js?v=20.6"></script>
+  <script defer src="pixel_avatar.js?v=20.6"></script>
+  <script defer src="online.js?v=20.6"></script>
+  <script defer src="fishing.js?v=20.6"></script>
+  <script defer src="app.js?v=20.6"></script>
   <script type="module">
     const banner = document.getElementById("smart-pwa-banner");
     const iosContent = document.getElementById("pwa-ios-content");
