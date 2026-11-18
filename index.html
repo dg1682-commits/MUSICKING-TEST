@@ -158,7 +158,7 @@
   <style>
     .hidden, [hidden] { display: none !important; }
   </style>
-  <link rel="stylesheet" href="style.css?v=20.3" />
+  <link rel="stylesheet" href="style.css?v=20.5" />
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 </head>
@@ -214,31 +214,19 @@
           <span>💿</span>
           <span id="headerCdCount">100</span>
         </div>
-        <button class="header-btn" id="openPatchBtn" onclick="openModal('patchNotesModal')" title="업데이트 내역">📢</button>
         <button class="header-btn" id="openSettingsBtn" onclick="openModal('settingsModal')" title="설정">⚙️</button>
+        <button class="header-btn" id="exitAppHeaderBtn" onclick="confirmAppExitFromHeader()" title="종료">🚪</button>
       </div>
     </header>
 
-    <!-- 헤더 바로 아래 우측 세로 일렬(🔔 알림 → 💿 일일CD → 🎁 랜덤상자 → 📅 출첵) -->
+    <!-- 비홈 화면(대기실·랭킹·친구 등)에서 미확인 DM이 있을 때만 노출되는 플로팅 알림 -->
     <button type="button" id="floatingDmNotiBtn" class="floating-top-btn right-noti hidden" onclick="openDmNotiModal()" title="도착한 1:1 메시지 확인">
       🔔<span id="dmNotiBadgeCount" class="noti-count-badge">0</span>
     </button>
-    <button type="button" id="floatingDailyCdBtn" class="floating-top-btn right-v2-btn hidden" onclick="claimDailyCd()" title="매일 무료 +100 CD">
-      💿<span id="dailyCdNotiDot" class="v2-red-dot hidden"></span>
-    </button>
-    <button type="button" id="floatingRandomBoxBtn" class="floating-top-btn right-v2-btn hidden" onclick="openRandomBoxModal()" title="오늘의 랜덤 선물상자">
-      🎁<span id="dailyBoxNotiDot" class="v2-red-dot hidden"></span>
-    </button>
-    <button type="button" id="floatingAttendanceBtn" class="floating-top-btn right-v2-btn hidden" onclick="openAttendanceModal()" title="28일 출석체크 보드">
-      📅<span id="dailyAttendanceNotiDot" class="v2-red-dot hidden"></span>
-    </button>
-    <button type="button" id="floatingEventBtn" class="floating-top-btn left-v2-btn hidden" onclick="openEventModal()" title="진행 중인 이벤트 보기">🎉</button>
 
-    <!-- ==================== 1. 메인 홈 화면 (좌 ?/🔊/🎉 · 우 🔔/💿/🎁/📅 · 하단 2×3 도크) ==================== -->
+    <!-- ==================== 1. 메인 홈 화면 (타이틀 · 캐릭터 · 경험치 · 4×2 퀵그리드 · 2×3 도크) ==================== -->
     <main id="homeScreen" class="screen-view hidden">
       <div class="home-hero">
-        <button type="button" id="floatingHelpBtn" class="floating-top-btn left-help hidden" onclick="openModal('howToPlayModal')" title="게임 방법 보기">?</button>
-
         <div class="home-title-block">
           <button type="button" id="homeCharTitlePill" class="home-main-title-btn" onclick="openTitlesModal()" title="타이틀 · 레벨 도감 보기">
             Lv.1 🐣 방구석 리스너
@@ -262,6 +250,46 @@
             </div>
           </div>
           <button class="btn" onclick="openTitlesModal()" style="padding:6px 9px; font-size:0.75rem; flex-shrink:0;">📜 타이틀</button>
+        </div>
+
+        <!-- 4×2 둥근 네모 퀵메뉴 그리드 -->
+        <div class="home-quick-grid" aria-label="홈 빠른 메뉴">
+          <button type="button" class="home-quick-btn is-help" onclick="openModal('howToPlayModal')" title="게임 방법 보기">
+            <span class="hq-ico">❓</span>
+            <span class="hq-lbl">가이드</span>
+          </button>
+          <button type="button" class="home-quick-btn" id="homeSoundBtn" onclick="toggleBgmMute()" title="배경음악/효과음 켜기·끄기">
+            <span class="hq-ico" id="homeSoundIcon">🔊</span>
+            <span class="hq-lbl">음소거</span>
+          </button>
+          <button type="button" class="home-quick-btn" onclick="openModal('patchNotesModal')" title="업데이트 내역">
+            <span class="hq-ico">📢</span>
+            <span class="hq-lbl">공지</span>
+          </button>
+          <button type="button" class="home-quick-btn" id="homeDmNotiBtn" onclick="openDmNotiModal()" title="도착한 1:1 메시지 확인">
+            <span class="hq-ico">🔔</span>
+            <span class="hq-lbl">알림</span>
+            <span id="homeDmNotiBadgeCount" class="home-quick-badge hidden">0</span>
+          </button>
+          <button type="button" class="home-quick-btn" onclick="openEventModal()" title="진행 중인 이벤트 보기">
+            <span class="hq-ico">🎉</span>
+            <span class="hq-lbl">이벤트</span>
+          </button>
+          <button type="button" class="home-quick-btn" onclick="claimDailyCd()" title="매일 무료 +100 CD">
+            <span class="hq-ico">💿</span>
+            <span class="hq-lbl">일일CD</span>
+            <span id="dailyCdNotiDot" class="v2-red-dot hidden"></span>
+          </button>
+          <button type="button" class="home-quick-btn" onclick="openRandomBoxModal()" title="오늘의 랜덤 선물상자">
+            <span class="hq-ico">🎁</span>
+            <span class="hq-lbl">선물</span>
+            <span id="dailyBoxNotiDot" class="v2-red-dot hidden"></span>
+          </button>
+          <button type="button" class="home-quick-btn" onclick="openAttendanceModal()" title="28일 출석체크 보드">
+            <span class="hq-ico">📅</span>
+            <span class="hq-lbl">출첵</span>
+            <span id="dailyAttendanceNotiDot" class="v2-red-dot hidden"></span>
+          </button>
         </div>
 
         <div class="home-action-dock">
@@ -1749,11 +1777,11 @@
     <div id="pwa-ios-arrow" style="display: none; position: absolute; bottom: -8px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 8px solid transparent; border-right: 8px solid transparent; border-top: 8px solid #38bdf8;"></div>
   </div>
 
-  <script defer src="data.js?v=20.3"></script>
-  <script defer src="pixel_avatar.js?v=20.3"></script>
-  <script defer src="online.js?v=20.3"></script>
-  <script defer src="fishing.js?v=20.3"></script>
-  <script defer src="app.js?v=20.3"></script>
+  <script defer src="data.js?v=20.5"></script>
+  <script defer src="pixel_avatar.js?v=20.5"></script>
+  <script defer src="online.js?v=20.5"></script>
+  <script defer src="fishing.js?v=20.5"></script>
+  <script defer src="app.js?v=20.5"></script>
   <script type="module">
     const banner = document.getElementById("smart-pwa-banner");
     const iosContent = document.getElementById("pwa-ios-content");

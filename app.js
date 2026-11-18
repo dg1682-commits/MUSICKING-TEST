@@ -838,13 +838,13 @@ async function playAudioSnippet(durationSec, startOffsetSec = 6, customQ = null,
   state.audioPending = true;
   try {
     const track = await fetchItunesTrack(q);
-    if (appExited || reqId !== state.audioRequestSeq) return;
+    if (appExited || reqId !== state.audioRequestSeq) return false;
     if (!track || !track.previewUrl) {
       if (statusEl) statusEl.textContent = "⚠️ 미리듣기 음원을 찾을 수 없습니다.";
       if (!isAutoPlay) {
         gameAlert("이 곡의 미리듣기 음원을 불러올 수 없습니다.");
       }
-      return;
+      return false;
     }
 
     const played = await startAudioStreamAt(
@@ -862,14 +862,16 @@ async function playAudioSnippet(durationSec, startOffsetSec = 6, customQ = null,
       }
     );
     if (!played && disc) disc.classList.remove("spinning");
+    return Boolean(played);
   } catch (err) {
-    if (reqId !== state.audioRequestSeq) return;
+    if (reqId !== state.audioRequestSeq) return false;
     if (disc) disc.classList.remove("spinning");
     if (statusEl) {
       statusEl.textContent = isAutoPlay
         ? "🔇 자동재생이 차단되었습니다. [▶ 1초 듣기]를 눌러주세요!"
         : "⚠️ 오디오 재생 버튼을 다시 눌러주세요.";
     }
+    return false;
   } finally {
     if (reqId === state.audioRequestSeq) {
       state.audioPending = false;
@@ -1060,15 +1062,17 @@ function syncFloatingSoundBtn(screenId) {
     fishSoundBtn.textContent = bgmState.muted ? "🔇" : "🔊";
     fishSoundBtn.classList.toggle("is-muted", bgmState.muted);
   }
+  const homeSoundBtn = document.getElementById("homeSoundBtn");
+  const homeSoundIcon = document.getElementById("homeSoundIcon");
+  if (homeSoundBtn) homeSoundBtn.classList.toggle("is-muted", bgmState.muted);
+  if (homeSoundIcon) homeSoundIcon.textContent = bgmState.muted ? "🔇" : "🔊";
+
   const btn = document.getElementById("floatingSoundBtn");
   if (!btn) return;
-  const showBtn = ["loginScreen", "homeScreen", "rankingScreen", "shopScreen", "socialScreen"].includes(screenId);
+  const showBtn = ["loginScreen", "rankingScreen", "shopScreen", "socialScreen"].includes(screenId);
   btn.classList.toggle("hidden", !showBtn);
   btn.textContent = bgmState.muted ? "🔇" : "🔊";
   btn.classList.toggle("is-muted", bgmState.muted);
-  if (typeof syncHomeCornerFloatingButtons === "function") {
-    syncHomeCornerFloatingButtons();
-  }
 }
 
 window.toggleBgmMute = function () {
@@ -1229,93 +1233,28 @@ function relocateCoupangAdBanner() {
   });
 }
 
-// 홈 화면에서 좌측(? / 🔊 / 🎉) · 우측(🔔 / 💿 / 🎁 / 📅) 세로 일렬 정밀 정렬
+window.confirmAppExitFromHeader = function () {
+  gameConfirm("음악왕을 종료하고 나가시겠습니까?", () => {
+    if (typeof performCleanAppExit === "function") {
+      performCleanAppExit();
+    }
+  }, "🚪 앱 종료");
+};
+
+// 비홈 화면 플로팅 버튼 인라인 스타일 정리 (홈 화면은 4×2 퀵그리드 고정 배치 사용)
 window.syncHomeCornerFloatingButtons = function () {
-  const shell = document.querySelector(".app-shell");
-  const hero = document.querySelector("#homeScreen .home-hero");
   const notiBtn = document.getElementById("floatingDmNotiBtn");
   const soundBtn = document.getElementById("floatingSoundBtn");
-  const helpBtn = document.getElementById("floatingHelpBtn");
-  const eventBtn = document.getElementById("floatingEventBtn");
-  const dailyCdBtn = document.getElementById("floatingDailyCdBtn");
-  const randomBoxBtn = document.getElementById("floatingRandomBoxBtn");
-  const attBtn = document.getElementById("floatingAttendanceBtn");
-
-  const homeOnlyBtns = [eventBtn, dailyCdBtn, randomBoxBtn, attBtn];
-
-  if (!shell) return;
-
-  if (state.currentScreen !== "homeScreen" || !hero) {
-    homeOnlyBtns.forEach(b => {
-      if (b) {
-        b.classList.add("hidden");
-        b.style.top = "";
-        b.style.left = "";
-        b.style.right = "";
-      }
-    });
-    if (notiBtn) {
-      notiBtn.style.top = "";
-      notiBtn.style.right = "";
-    }
-    if (soundBtn) {
-      soundBtn.style.top = "";
-      soundBtn.style.right = "";
-      soundBtn.style.left = "";
-      soundBtn.style.bottom = "";
-    }
-    return;
-  }
-
-  const sRect = shell.getBoundingClientRect();
-  const hRect = hero.getBoundingClientRect();
-  if (hRect.width <= 0 || hRect.height <= 0) return;
-
-  const topBase = Math.round(hRect.top - sRect.top + 12);
-  const leftX = Math.round(hRect.left - sRect.left + 10);
-  const rightX = Math.round(sRect.right - hRect.right + 12);
-  const gapY = 40;
-
-  // 좌측 세로 일렬: ? -> 🔊 -> 🔔
-  if (helpBtn) {
-    helpBtn.style.top = "10px";
-    helpBtn.style.left = "10px";
+  if (notiBtn) {
+    notiBtn.style.top = "";
+    notiBtn.style.left = "";
+    notiBtn.style.right = "";
   }
   if (soundBtn) {
-    soundBtn.classList.remove("hidden");
-    soundBtn.style.bottom = "auto";
-    soundBtn.style.right = "auto";
-    soundBtn.style.left = `${leftX}px`;
-    soundBtn.style.top = `${topBase + gapY}px`;
-  }
-  if (notiBtn) {
-    notiBtn.classList.remove("hidden");
-    notiBtn.style.right = "auto";
-    notiBtn.style.left = `${leftX}px`;
-    notiBtn.style.top = `${topBase + gapY * 2}px`;
-  }
-
-  // 우측 세로 일렬: 🎉 -> 💿 -> 🎁 -> 📅
-  if (eventBtn) {
-    eventBtn.classList.remove("hidden");
-    eventBtn.style.left = "auto";
-    eventBtn.style.right = `${rightX}px`;
-    eventBtn.style.top = `${topBase}px`;
-  }
-  if (dailyCdBtn) {
-    dailyCdBtn.classList.remove("hidden");
-    dailyCdBtn.style.right = `${rightX}px`;
-    dailyCdBtn.style.top = `${topBase + gapY}px`;
-  }
-  if (randomBoxBtn) {
-    randomBoxBtn.classList.remove("hidden");
-    randomBoxBtn.style.right = `${rightX}px`;
-    randomBoxBtn.style.top = `${topBase + gapY * 2}px`;
-  }
-  if (attBtn) {
-    attBtn.classList.remove("hidden");
-    attBtn.style.right = `${rightX}px`;
-    attBtn.style.top = `${topBase + gapY * 3}px`;
+    soundBtn.style.top = "";
+    soundBtn.style.right = "";
+    soundBtn.style.left = "";
+    soundBtn.style.bottom = "";
   }
 };
 
@@ -1790,15 +1729,25 @@ window.useSingleGameItem = async function (itemId) {
     return;
   }
 
+  const q = state.currentQ;
+  if (itemId === "item_3sec") {
+    const playedOk = await playAudioSnippet(3.0, 6, q, null, null, { isAutoPlay: false });
+    if (!playedOk) {
+      return;
+    }
+    userState.inventory[itemId] = cnt - 1;
+    state.usedItemsInRun.add(itemId);
+    if (typeof syncProfileToServer === "function") syncProfileToServer();
+    appendHintBox("🎧 3초 듣기", "하이라이트 3초 재생!");
+    renderSingleItemSlotsBar();
+    return;
+  }
+
   userState.inventory[itemId] = cnt - 1;
   state.usedItemsInRun.add(itemId);
   if (typeof syncProfileToServer === "function") syncProfileToServer();
 
-  const q = state.currentQ;
-  if (itemId === "item_3sec") {
-    playAudioSnippet(3.0, 6, q, null, null, { isAutoPlay: false });
-    appendHintBox("🎧 3초 듣기", "하이라이트 3초 재생!");
-  } else if (itemId === "item_chosung") {
+  if (itemId === "item_chosung") {
     const chosungText =
       state.stage === 1
         ? `노래 초성: <strong>${getChosungString(q.title)}</strong>`

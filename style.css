@@ -232,10 +232,10 @@ body.on-home-screen .app-shell {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: space-between;
+  justify-content: space-evenly;
   gap: clamp(6px, 1.1svh, 10px);
   text-align: center;
-  padding: clamp(44px, 6.4svh, 60px) 12px clamp(14px, 2svh, 20px);
+  padding: clamp(14px, 2.2svh, 20px) 12px clamp(12px, 1.8svh, 18px);
   background: #ffffff;
   border: 3px solid var(--game-border);
   border-radius: 24px;
@@ -2578,7 +2578,7 @@ body.on-fishing-screen.keyboard-open .app-shell {
 .fishing-right-column {
   position: absolute;
   top: max(14px, calc(env(safe-area-inset-top, 0px) + 10px));
-  bottom: 10px;
+  max-height: calc(100% - 28px);
   right: 10px;
   z-index: 45;
   width: clamp(114px, 30vw, 146px);
@@ -2649,8 +2649,9 @@ body.on-fishing-screen.keyboard-open .app-shell {
 }
 
 .fishing-users-overlay {
-  flex: 1;
+  flex: 0 1 auto;
   min-height: 0;
+  max-height: 100%;
   background: rgba(15, 23, 42, 0.52);
   backdrop-filter: blur(4px);
   border: 1px solid rgba(255, 255, 255, 0.28);
@@ -2672,8 +2673,9 @@ body.on-fishing-screen.keyboard-open .app-shell {
 }
 
 .fishing-online-users-list {
-  flex: 1;
+  flex: 0 1 auto;
   min-height: 0;
+  max-height: 100%;
   overflow-y: auto;
   -webkit-overflow-scrolling: touch;
   display: flex;
@@ -3512,4 +3514,80 @@ body.on-fishing-screen.keyboard-open .fishing-chat-log {
   border: 2px solid var(--game-border);
   border-radius: 12px;
   padding: 12px;
+}
+
+/* [v20.5] 메인 홈 4×2 둥근 네모 퀵메뉴 그리드 */
+.home-quick-grid {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+  flex-shrink: 0;
+}
+
+.home-quick-btn {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 2px;
+  padding: 7px 4px;
+  background: #ffffff;
+  border: 2.2px solid var(--game-border);
+  border-radius: 12px;
+  box-shadow: 0 2px 0 var(--game-border);
+  cursor: pointer;
+  color: var(--text-main);
+  transition: transform 0.08s ease;
+}
+
+.home-quick-btn:active {
+  transform: translateY(2px);
+  box-shadow: 0 0 0 var(--game-border);
+}
+
+.home-quick-btn.is-help {
+  background: #fef9c3;
+}
+
+.home-quick-btn.is-muted {
+  background: #f1f5f9;
+  color: var(--text-sub);
+}
+
+.home-quick-btn .hq-ico {
+  font-size: 1.05rem;
+  line-height: 1.1;
+}
+
+.home-quick-btn .hq-lbl {
+  font-size: 0.64rem;
+  font-weight: 900;
+  line-height: 1.1;
+  letter-spacing: -0.3px;
+  white-space: nowrap;
+}
+
+.home-quick-badge {
+  position: absolute;
+  top: -4px;
+  right: -4px;
+  min-width: 16px;
+  height: 16px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: #ef4444;
+  color: #ffffff;
+  font-size: 0.62rem;
+  font-weight: 900;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1.5px solid #ffffff;
+}
+
+.home-quick-btn .v2-red-dot {
+  top: 4px;
+  right: 4px;
 }

@@ -415,9 +415,9 @@ window.openTitlesModal = function () {
   const lv = getLevelInfo(userState.exp);
   const summaryEl = document.getElementById("titlesCurrentSummary");
   if (summaryEl) {
-    summaryEl.textContent = lv.isMax
-      ? `👑 현재 최고 레벨 Lv.20 달성! (${lv.title}) · 총 ${lv.exp.toLocaleString()} EXP`
-      : `현재 Lv.${lv.level} [${lv.title}] · 보유 ${lv.exp.toLocaleString()} EXP (Lv.${lv.level + 1}까지 ${(lv.nextReq - lv.exp).toLocaleString()} EXP 남음)`;
+    summaryEl.innerHTML = lv.isMax
+      ? `👑 현재 최고 레벨 Lv.20 달성! (${lv.title})<br/>총 ${lv.exp.toLocaleString()} EXP`
+      : `현재 Lv.${lv.level} [${lv.title}] · 보유 ${lv.exp.toLocaleString()} EXP<br/>(Lv.${lv.level + 1}까지 ${(lv.nextReq - lv.exp).toLocaleString()} EXP 남음)`;
   }
 
   const listEl = document.getElementById("titlesTableList");
@@ -1121,13 +1121,10 @@ async function checkAndProcessGameRewards(score, mode, stage, baseCd = 0) {
         if (myIdx !== -1 && myIdx < 3) {
           const currentRank = myIdx + 1;
           const rankKey = `${mode}_${stage}`;
-          const prevClaimed = Number(userState.claimedTopRanks?.[rankKey]) || 99;
-          // 해당 순위(또는 더 높은 순위)에 방금 처음으로 도달한 그 순간(1회)만 발동!
-          if (currentRank < prevClaimed) {
-            achievedTopRank = currentRank;
-            multiplier = currentRank === 1 ? 5 : currentRank === 2 ? 3 : 2;
-            userState.claimedTopRanks = { ...(userState.claimedTopRanks || {}), [rankKey]: currentRank };
-          }
+          // 내 최고 기록을 갱신해 TOP 3(1·2·3위) 안에 들 때마다 해당 순위 배율 보너스 지급!
+          achievedTopRank = currentRank;
+          multiplier = currentRank === 1 ? 5 : currentRank === 2 ? 3 : 2;
+          userState.claimedTopRanks = { ...(userState.claimedTopRanks || {}), [rankKey]: currentRank };
         }
       }
     } catch (e) {}
@@ -2337,18 +2334,20 @@ window.markAllDmNotiRead = function () {
 window.syncDmNotiBadgeUI = function () {
   const btn = document.getElementById("floatingDmNotiBtn");
   const badge = document.getElementById("dmNotiBadgeCount");
-  if (!btn || !badge) return;
+  const homeBadge = document.getElementById("homeDmNotiBadgeCount");
   const count = dmNotiState.unreadList.length;
+  const countText = count > 99 ? "99+" : String(count);
+  if (homeBadge) {
+    homeBadge.classList.toggle("hidden", count <= 0);
+    homeBadge.textContent = countText;
+  }
+  if (!btn || !badge) return;
   const curScreen = typeof state !== "undefined" ? state.currentScreen : "homeScreen";
-  const isHome = curScreen === "homeScreen";
-  const allowScreen = ["homeScreen", "setupScreen", "plazaScreen", "rankingScreen", "socialScreen"].includes(curScreen);
-  const shouldShowBtn = isHome || (userState.isLoggedIn && count > 0 && allowScreen);
+  const allowScreen = ["setupScreen", "plazaScreen", "rankingScreen", "socialScreen"].includes(curScreen);
+  const shouldShowBtn = userState.isLoggedIn && count > 0 && allowScreen;
   btn.classList.toggle("hidden", !shouldShowBtn);
   badge.classList.toggle("hidden", count <= 0);
-  badge.textContent = count > 99 ? "99+" : String(count);
-  if (typeof syncHomeCornerFloatingButtons === "function") {
-    syncHomeCornerFloatingButtons();
-  }
+  badge.textContent = countText;
 };
 
 window.refreshUnreadDmNotis = async function () {
@@ -3916,17 +3915,14 @@ window.useBattleGameItem = async function (itemId) {
     return;
   }
 
-  userState.inventory[itemId] = cnt - 1;
-  plazaState.usedBattleItems.add(itemId);
-  await syncProfileToServer();
-
   const curIdx = room.current_q_index || 0;
   const qId = (room.question_ids || [])[curIdx];
   const q = QUESTIONS_DB.find(item => item.id === qId) || QUESTIONS_DB[0];
 
   if (itemId === "item_3sec") {
+    let playedOk = false;
     if (typeof playAudioSnippet === "function") {
-      playAudioSnippet(
+      playedOk = await playAudioSnippet(
         3.0,
         6,
         q,
@@ -3935,8 +3931,23 @@ window.useBattleGameItem = async function (itemId) {
         { isAutoPlay: false }
       );
     }
+    if (!playedOk) {
+      showBattleRoundToast("⚠️ 음원 재생에 실패하여 아이템이 차감되지 않았습니다.", true);
+      return;
+    }
+    userState.inventory[itemId] = cnt - 1;
+    plazaState.usedBattleItems.add(itemId);
+    await syncProfileToServer();
     showBattleRoundToast("🎧 3초 듣기 아이템 발동!", false);
-  } else if (itemId === "item_chosung") {
+    renderBattlePlayItemBar(room);
+    return;
+  }
+
+  userState.inventory[itemId] = cnt - 1;
+  plazaState.usedBattleItems.add(itemId);
+  await syncProfileToServer();
+
+  if (itemId === "item_chosung") {
     const stage = Number(cfg.stage || 1);
     const toCho = typeof getChosungString === "function" ? getChosungString : (s => String(s || ""));
     const hintStr =
