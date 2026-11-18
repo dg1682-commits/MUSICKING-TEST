@@ -1521,6 +1521,15 @@ function updateShopPreviewCanvas() {
   const sel = shopPreviewState.selectedItem || getItemById("hair", shopPreviewState.config.hair);
   titleEl.textContent = sel.name || "기본 스타일";
   descEl.textContent = sel.desc || "아이템을 눌러 먼저 입어보세요!";
+  const scopeBadgeEl = document.getElementById("shopBoardScopeBadge");
+  if (scopeBadgeEl) {
+    if (sel.cat === "game_item" && sel.scopeLabel) {
+      scopeBadgeEl.textContent = sel.scopeLabel;
+      scopeBadgeEl.classList.remove("hidden");
+    } else {
+      scopeBadgeEl.classList.add("hidden");
+    }
+  }
 
   if (sel.cat === "special" && sel.id === "nickname_ticket") {
     if (priceBadgeEl) priceBadgeEl.textContent = `💿 ${sel.price.toLocaleString()} CD`;
@@ -1541,7 +1550,6 @@ function updateShopPreviewCanvas() {
   if (sel.cat === "game_item") {
     const cnt = getConsumableCount(sel.id);
     if (priceBadgeEl) priceBadgeEl.textContent = `💿 ${sel.price.toLocaleString()} CD · 보유 ${cnt}개`;
-    descEl.innerHTML = `<span class="badge primary" style="font-size:0.68rem; margin-right:4px;">${sel.scopeLabel || "공용"}</span>` + (sel.desc || "").replace(/\n/g, "<br/>");
     confirmBtn.textContent = "🛍️ 1개 구매하기";
     confirmBtn.className = "btn btn-gold";
     confirmBtn.onclick = () => purchaseConsumableShopItem("game_item", sel);
@@ -4108,20 +4116,29 @@ window.renderBagScreen = function () {
 
   const listEl = document.getElementById("bagItemsGrid");
   if (listEl && typeof GAME_ITEMS_CATALOG !== "undefined") {
-    listEl.innerHTML = GAME_ITEMS_CATALOG.map(item => {
+    const itemCards = GAME_ITEMS_CATALOG.map(item => {
       const cnt = getConsumableCount(item.id);
       const isEquipped = equipped.includes(item.id);
       const isSelected = bagSelectedItemId === item.id;
       const emoji = item.name.split(" ")[0] || "🎒";
       return `
         <div class="bag-item-tile ${isEquipped ? "is-equipped" : ""} ${isSelected ? "is-selected" : ""}" onclick="selectBagItem('${item.id}')">
-          <span class="bag-item-scope">${item.scopeLabel}</span>
-          <div style="font-size:1.75rem; margin:6px 0 2px;">${emoji}</div>
+          ${isEquipped ? `<span class="bag-item-equipped-tag">장착</span>` : ""}
+          <span class="bag-item-cnt-pill">x${cnt}</span>
+          <div style="font-size:1.85rem; line-height:1.1; margin-top:4px;">${emoji}</div>
           <div class="bag-item-name">${item.name.replace(/^[^\s]+\s/, "")}</div>
-          <div class="bag-item-cnt">${isEquipped ? "✅ 장착중 · " : ""}보유 ${cnt}개</div>
         </div>
       `;
-    }).join("");
+    });
+    for (let i = GAME_ITEMS_CATALOG.length; i < 9; i++) {
+      itemCards.push(`
+        <div class="bag-item-tile is-empty-slot">
+          <div style="font-size:1.25rem; opacity:0.35;">🔒</div>
+          <div style="font-size:0.66rem; font-weight:800; color:#94a3b8;">빈 칸</div>
+        </div>
+      `);
+    }
+    listEl.innerHTML = itemCards.join("");
   }
 
   renderBagSelectedDetail();
