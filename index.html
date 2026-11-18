@@ -1,0 +1,1821 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <!-- ⚠️ [원스토어 H5 Game SDK v1.1.0] <head> 최상단 우선 로드 · 버전 경로는 반드시 'v' 접두사 포함(예: v1.1.0) -->
+  <script type="module">
+    // ✏️ [버전 관리] 원스토어 공식 최신 SDK 버전 'v1.1.0' ('v' 접두사 필수 / 기존 '1.0.0' 경로는 CDN 404 오류)
+    import { createSDK } from "https://h5sdk.onestore.net/lib/v1.1.0/onestore-h5-sdk.min.js";
+
+    let resolveGameReady = null;
+    const gameReadyPromise = new Promise(resolve => {
+      resolveGameReady = resolve;
+    });
+    window.__markMusickingBootReady = () => {
+      window.__musickingBootReady = true;
+      if (resolveGameReady) {
+        resolveGameReady();
+        resolveGameReady = null;
+      }
+    };
+
+    function applyOnestoreSafeArea(safeArea) {
+      if (!safeArea || typeof safeArea !== "object") return;
+      const rootStyle = document.documentElement.style;
+      const toPx = v => (Number.isFinite(Number(v)) ? `${Math.max(0, Number(v))}px` : "0px");
+      rootStyle.setProperty("--os-safe-top", toPx(safeArea.top));
+      rootStyle.setProperty("--os-safe-bottom", toPx(safeArea.bottom));
+      rootStyle.setProperty("--os-safe-left", toPx(safeArea.left));
+      rootStyle.setProperty("--os-safe-right", toPx(safeArea.right));
+    }
+
+    function whenDocumentReady() {
+      if (document.readyState !== "loading") return Promise.resolve();
+      return new Promise(resolve => document.addEventListener("DOMContentLoaded", resolve, { once: true }));
+    }
+
+    try {
+      const sdk = createSDK();
+      window.onestoreSdk = sdk;
+      window.onestoreCtx = null;
+      window.__onestorePaused = false;
+      window.__onestoreRingerSilent = false;
+
+      // 1) 생명주기 콜백은 반드시 initializeAsync() 호출 전에 등록
+      sdk.on("pause", () => {
+        window.__onestorePaused = true;
+        if (typeof window.onOnestorePause === "function") {
+          try { window.onOnestorePause(); } catch (err) {}
+        } else if (typeof window.stopAllAppAudio === "function") {
+          try { window.stopAllAppAudio(false); } catch (err) {}
+        }
+      });
+
+      sdk.on("resume", event => {
+        window.__onestorePaused = false;
+        if (event && typeof event.ringerSilent === "boolean") {
+          window.__onestoreRingerSilent = event.ringerSilent;
+        }
+        if (typeof window.onOnestoreResume === "function") {
+          try { window.onOnestoreResume(event); } catch (err) {}
+        }
+      });
+
+      sdk.on("exit", () => {
+        if (typeof window.onOnestoreExit === "function") {
+          try { window.onOnestoreExit(); } catch (err) {}
+        } else {
+          if (typeof window.handleFishingForcedExit === "function") {
+            try { window.handleFishingForcedExit(); } catch (err) {}
+          }
+          if (typeof window.stopAllAppAudio === "function") {
+            try { window.stopAllAppAudio(true); } catch (err) {}
+          }
+        }
+      });
+
+      sdk.onBackPressed(() => {
+        if (typeof window.handleOnestoreBackPressed === "function") {
+          try {
+            return window.handleOnestoreBackPressed() === true;
+          } catch (err) {}
+        }
+        return false;
+      });
+
+      // 2) SDK 초기화(core.getConfig) -> 로딩 진행율(core.loadingProgress) -> 게임 준비 완료(core.ready)
+      sdk.initializeAsync()
+        .then(async info => {
+          if (info && info.err) {
+            // 일반 웹/PWA 환경에서는 에러를 띄우지 않고 단독 웹게임으로 그대로 실행
+            window.onestoreCtx = null;
+            return;
+          }
+
+          window.onestoreCtx = info || {};
+          if (typeof info?.ringerSilent === "boolean") {
+            window.__onestoreRingerSilent = info.ringerSilent;
+          }
+          if (info?.safeArea) {
+            applyOnestoreSafeArea(info.safeArea);
+          }
+
+          try { sdk.setLoadingProgress(35); } catch (err) {}
+
+          await whenDocumentReady();
+          if (!window.__musickingBootReady) {
+            await Promise.race([
+              gameReadyPromise,
+              new Promise(resolve => setTimeout(resolve, 2000))
+            ]);
+          }
+
+          try { sdk.setLoadingProgress(85); } catch (err) {}
+          await new Promise(resolve => setTimeout(resolve, 0));
+          try { sdk.setLoadingProgress(100); } catch (err) {}
+
+          const startInfo = await sdk.startGameAsync();
+          if (startInfo && !startInfo.err) {
+            window.onestoreCtx = { ...window.onestoreCtx, ...startInfo };
+          }
+          if (typeof window.onOnestoreGameStarted === "function") {
+            try { window.onOnestoreGameStarted(sdk, window.onestoreCtx); } catch (err) {}
+          }
+        })
+        .catch(err => {
+          console.warn("[ONEstore H5 SDK] init skipped:", err);
+        });
+    } catch (e) {
+      window.onestoreSdk = null;
+      console.warn("[ONEstore H5 SDK] init skipped:", e);
+    }
+  </script>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover, interactive-widget=overlays-content" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+  <meta name="apple-mobile-web-app-title" content="음악왕" />
+  <meta name="theme-color" content="#38bdf8" />
+  <link rel="manifest" href="manifest.json" />
+  <link rel="icon" type="image/png" sizes="192x192" href="icons/icon-192.png" />
+  <link rel="icon" type="image/svg+xml" href="icons/icon.svg" />
+  <link rel="apple-touch-icon" href="icons/icon-192.png" />
+  <title>음악왕</title>
+  <meta name="description" content="1초 듣고 맞추는 짜릿한 음악 퀴즈!" />
+  <meta property="og:type" content="website" />
+  <meta property="og:site_name" content="음악왕" />
+  <meta property="og:title" content="음악왕" />
+  <meta property="og:description" content="1초 듣고 맞추는 짜릿한 음악 퀴즈!" />
+  <meta property="og:url" content="https://dg1682-commits.github.io/MUSICKING/" />
+  <meta property="og:image" content="https://dg1682-commits.github.io/MUSICKING/icons/icon-512.png" />
+  <meta property="og:image:width" content="512" />
+  <meta property="og:image:height" content="512" />
+  <meta property="og:image:alt" content="음악왕 앱 아이콘" />
+  <meta name="twitter:card" content="summary" />
+  <meta name="twitter:title" content="음악왕" />
+  <meta name="twitter:description" content="1초 듣고 맞추는 짜릿한 음악 퀴즈!" />
+  <meta name="twitter:image" content="https://dg1682-commits.github.io/MUSICKING/icons/icon-512.png" />
+  <style>
+    .hidden, [hidden] { display: none !important; }
+  </style>
+  <link rel="stylesheet" href="style.css?v=20.0" />
+  <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script defer src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+</head>
+<body oncontextmenu="return false" onselectstart="return false" ondragstart="return false">
+  <div class="app-shell">
+    <!-- ==================== 0. 전용 로그인 화면 (고해상도 도트 디자인 '음악왕' 로고 + 아이디 저장 / 자동로그인) ==================== -->
+    <section id="loginScreen" class="screen-view">
+      <div class="home-hero" style="justify-content:center; gap:12px;">
+        <span class="hero-badge">👑 K-POP 퀴즈 · 음악왕</span>
+
+        <!-- 고해상도 도트 디자인 '음악왕' 대형 타이틀 로고 캔버스 -->
+        <div class="home-wide-stage" style="max-width:380px; background:#17153b;">
+          <canvas id="loginLogoCanvas" width="700" height="380" style="width:100%; height:195px; display:block; image-rendering:pixelated;"></canvas>
+        </div>
+
+        <div>
+          <p style="font-size:0.86rem; font-weight:800; color:var(--text-sub);">닉네임과 비밀번호로 바로 접속하세요!</p>
+        </div>
+
+        <div style="width:100%; max-width:340px; display:flex; flex-direction:column; gap:8px;">
+          <input type="text" id="authNicknameInput" class="text-input" placeholder="닉네임 (2글자 이상)" autocomplete="off" />
+          <input type="password" id="authPasswordInput" class="text-input" placeholder="비밀번호 (6자리 이상)" autocomplete="off" onkeydown="if(event.key==='Enter') handleAuthSubmit('login')" />
+          <div class="auth-check-row">
+            <label class="auth-check-label">
+              <input type="checkbox" id="saveIdCheckbox" checked onchange="saveAuthPreferences()" />
+              <span>아이디 저장</span>
+            </label>
+            <label class="auth-check-label">
+              <input type="checkbox" id="autoLoginCheckbox" checked onchange="saveAuthPreferences()" />
+              <span>자동로그인</span>
+            </label>
+          </div>
+          <div class="action-row" style="margin-top:2px;">
+            <button class="btn btn-primary" onclick="handleAuthSubmit('login')" style="flex:1; padding:13px; font-size:0.95rem;">로그인</button>
+            <button class="btn btn-gold" onclick="openSignupGenderStep()" style="flex:1; padding:13px; font-size:0.95rem;">회원가입</button>
+          </div>
+          <div class="auth-legal-links">
+            <button type="button" class="auth-text-link" onclick="openPrivacyPolicyModal()">개인정보처리방침</button>
+            <span aria-hidden="true" style="color:#94a3b8; font-size:0.72rem;">·</span>
+            <button type="button" class="auth-text-link danger" onclick="openExternalDeleteAccountModal()">계정 탈퇴/삭제 요청</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== 상단 헤더 (좌측: 아웃라인·도형 없이 닉네임 전체 표기 / 우측: 로그아웃 버튼 제거) ==================== -->
+    <header id="topHeader" class="top-header hidden">
+      <button type="button" class="user-profile-trigger" id="headerMyProfileTrigger" onclick="openMyProfileModal()" title="내 프로필 및 전적/랭킹 보기">
+        <span class="user-nick-name" id="headerTopMyNick">도전자</span>
+      </button>
+      <div class="header-right">
+        <div class="cd-pill" id="headerCdBtn" title="보유 CD 코인" style="cursor:pointer;">
+          <span>💿</span>
+          <span id="headerCdCount">100</span>
+        </div>
+        <button class="header-btn" id="openPatchBtn" onclick="openModal('patchNotesModal')" title="업데이트 내역">📢</button>
+        <button class="header-btn" id="openSettingsBtn" onclick="openModal('settingsModal')" title="설정">⚙️</button>
+      </div>
+    </header>
+
+    <!-- 헤더 바로 아래 우측 세로 일렬(🔔 알림 → 💿 일일CD → 🎁 랜덤상자 → 📅 출첵) -->
+    <button type="button" id="floatingDmNotiBtn" class="floating-top-btn right-noti hidden" onclick="openDmNotiModal()" title="도착한 1:1 메시지 확인">
+      🔔<span id="dmNotiBadgeCount" class="noti-count-badge">0</span>
+    </button>
+    <button type="button" id="floatingDailyCdBtn" class="floating-top-btn right-v2-btn hidden" onclick="claimDailyCd()" title="매일 무료 +100 CD">
+      💿<span id="dailyCdNotiDot" class="v2-red-dot hidden"></span>
+    </button>
+    <button type="button" id="floatingRandomBoxBtn" class="floating-top-btn right-v2-btn hidden" onclick="openRandomBoxModal()" title="오늘의 랜덤 선물상자">
+      🎁<span id="dailyBoxNotiDot" class="v2-red-dot hidden"></span>
+    </button>
+    <button type="button" id="floatingAttendanceBtn" class="floating-top-btn right-v2-btn hidden" onclick="openAttendanceModal()" title="28일 출석체크 보드">
+      📅<span id="dailyAttendanceNotiDot" class="v2-red-dot hidden"></span>
+    </button>
+    <button type="button" id="floatingEventBtn" class="floating-top-btn left-v2-btn hidden" onclick="openEventModal()" title="진행 중인 이벤트 보기">🎉</button>
+
+    <!-- ==================== 1. 메인 홈 화면 (좌 ?/🔊/🎉 · 우 🔔/💿/🎁/📅 · 하단 2×3 도크) ==================== -->
+    <main id="homeScreen" class="screen-view hidden">
+      <div class="home-hero">
+        <button type="button" id="floatingHelpBtn" class="floating-top-btn left-help hidden" onclick="openModal('howToPlayModal')" title="게임 방법 보기">?</button>
+
+        <div class="home-title-block">
+          <button type="button" id="homeCharTitlePill" class="home-main-title-btn" onclick="openTitlesModal()" title="타이틀 · 레벨 도감 보기">
+            Lv.1 🐣 방구석 리스너
+          </button>
+        </div>
+
+        <!-- 와이드 직사각형 파노라마 배경 + 정중앙 정배율 캐릭터 -->
+        <div class="home-wide-stage">
+          <canvas id="homeHeroAvatar" width="840" height="525" style="width:100%; height:100%; display:block;"></canvas>
+        </div>
+
+        <!-- 레벨 · 경험치 바 + 타이틀 도감 버튼 -->
+        <div class="home-exp-row">
+          <div class="exp-bar-wrap">
+            <div class="exp-bar-top">
+              <span id="homeExpLevelLabel">Lv.1 · 다음 레벨까지 1,000 EXP</span>
+              <span id="homeExpPercentLabel" style="color:var(--primary-dark);">0.0%</span>
+            </div>
+            <div class="exp-progress-track">
+              <div id="homeExpBarFill" class="exp-progress-fill" style="width:0%;"></div>
+            </div>
+          </div>
+          <button class="btn" onclick="openTitlesModal()" style="padding:6px 9px; font-size:0.75rem; flex-shrink:0;">📜 타이틀</button>
+        </div>
+
+        <div class="home-action-dock">
+          <div class="home-dock-3x2">
+            <button class="btn btn-primary" id="enterPlayHubBtn" onclick="switchScreen('playHubScreen')">
+              <span>🎮 플레이</span>
+            </button>
+            <button class="btn btn-gold" id="enterBagBtn" onclick="openBagScreen()">
+              <span>🎒 가방</span>
+            </button>
+            <button class="btn btn-fishing-green" id="enterFishingBtn" onclick="enterFishingRoom()">
+              <span>🎣 낚시터</span>
+            </button>
+            <button class="btn btn-home-white" onclick="openShopModal()">👗 상점 · 옷장</button>
+            <button class="btn btn-home-white" onclick="openRankingModal()">🏆 랭킹</button>
+            <button class="btn btn-home-white" onclick="openSocialModal('friends')">👥 친구 · DM</button>
+          </div>
+        </div>
+      </div>
+
+      <!-- 최하단 플랫폼별 배너 슬롯 (웹/원스토어: 쿠팡 320x50 · 구글플레이 Capacitor: AdMob 배너) -->
+      <div id="homeAdBannerSlot" class="home-ad-banner" aria-label="하단 배너 광고">
+        <div id="homeCoupangFrameWrap" class="coupang-frame-wrap">
+          <script src="https://ads-partners.coupang.com/g.js"></script>
+          <script>
+            try {
+              if (typeof PartnersCoupang !== "undefined") {
+                new PartnersCoupang.G({"id":1051148,"template":"carousel","trackingCode":"AF5801294","width":"320","height":"50","tsource":""});
+              }
+            } catch (e) {}
+          </script>
+        </div>
+        <p class="coupang-disclosure">이 포스팅은 쿠팡 파트너스 활동의 일환으로, 이에 따른 일정액의 수수료를 제공받습니다.</p>
+        <div id="homeAdmobBannerSlot" class="hidden" style="width:320px; height:50px; display:flex; align-items:center; justify-content:center; background:#0f172a; color:#94a3b8; font-size:0.75rem; font-weight:800; border-radius:8px;">
+          📱 Google AdMob 배너 영역 (출시 키 연동)
+        </div>
+      </div>
+    </main>
+
+    <!-- ==================== 1-B. 플레이 허브 화면 (#playHubScreen) ==================== -->
+    <section id="playHubScreen" class="screen-view hidden">
+      <div class="card" style="flex:1; display:flex; flex-direction:column; justify-content:space-between; gap:10px;">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <button class="apf-back-circle" onclick="showHome()" title="메인으로 돌아가기" style="width:36px; height:36px; font-size:1rem;">⬅</button>
+          <h3 style="font-size:1.05rem; font-weight:900;">🎮 음악왕 플레이 모드 선택</h3>
+          <span style="width:36px;"></span>
+        </div>
+
+        <div class="play-hub-banners">
+          <button type="button" class="play-hub-banner is-single" onclick="selectSinglePlay()">
+            <div class="play-hub-ico">🎯</div>
+            <div class="play-hub-text">
+              <strong>싱글 플레이</strong>
+              <span>비하인드 · 가사 · 1초듣기 · 무한도전 (노템 클리어 시 +10% 보너스!)</span>
+            </div>
+            <span class="play-hub-arrow">➔</span>
+          </button>
+
+          <button type="button" class="play-hub-banner is-1v1" onclick="enterMultiPlazaWithMode('1v1')">
+            <div class="play-hub-ico">⚡</div>
+            <div class="play-hub-text">
+              <strong>1:1 멀티 플레이</strong>
+              <span>실시간 선착순 승부! 노템전 / 아이템전 선택 가능</span>
+            </div>
+            <span class="play-hub-arrow">➔</span>
+          </button>
+
+          <button type="button" class="play-hub-banner is-4p" onclick="enterMultiPlazaWithMode('4p')">
+            <div class="play-hub-ico">🏆</div>
+            <div class="play-hub-text">
+              <strong>4인 멀티 플레이</strong>
+              <span>최대 4인이 겨루는 점수제 아레나 대결!</span>
+            </div>
+            <span class="play-hub-arrow">➔</span>
+          </button>
+        </div>
+
+        <button class="btn" onclick="showHome()" style="width:100%;">⬅ 메인 화면으로 돌아가기</button>
+      </div>
+    </section>
+
+    <!-- ==================== 1-C. 가방 (인벤토리) 화면 (#bagScreen) ==================== -->
+    <section id="bagScreen" class="screen-view hidden">
+      <div class="card" style="flex:1; min-height:0; display:flex; flex-direction:column; gap:8px;">
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-shrink:0;">
+          <button class="apf-back-circle" onclick="showHome()" title="메인으로 돌아가기" style="width:36px; height:36px; font-size:1rem;">⬅</button>
+          <h3 style="font-size:1.02rem; font-weight:900;">🎒 내 가방 · 아이템 장착</h3>
+          <button class="btn btn-gold" onclick="openShopModal('game_item')" style="padding:5px 9px; font-size:0.75rem;">🛒 상점</button>
+        </div>
+
+        <!-- 상단: 내 캐릭터 + 장착 슬롯 6칸 -->
+        <div class="bag-top-stage">
+          <canvas id="bagAvatarCanvas" width="480" height="480" style="width:76px; height:76px; border-radius:14px; border:2.5px solid #1e1b18; flex-shrink:0;"></canvas>
+          <div style="flex:1; min-width:0;">
+            <div style="font-size:0.75rem; font-weight:900; color:var(--text-sub); margin-bottom:4px;">📌 장착 슬롯 (최대 6칸 · 인게임 즉시 사용)</div>
+            <div id="bagEquipSlotsRow" class="bag-equip-slots-row"></div>
+          </div>
+        </div>
+
+        <!-- 중단: 보유 아이템 목록 -->
+        <div id="bagItemsGrid" class="bag-items-grid"></div>
+
+        <!-- 하단: 선택한 아이템 설명 + 광고 충전 + 상점 이동 -->
+        <div class="bag-detail-box">
+          <div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
+            <strong id="bagDetailTitle" style="font-size:0.88rem; color:var(--text-main);">아이템을 선택하세요</strong>
+            <span id="bagDetailScope" class="badge primary" style="font-size:0.68rem;">공용</span>
+          </div>
+          <p id="bagDetailDesc" style="font-size:0.76rem; color:var(--text-sub); margin:4px 0 8px; line-height:1.35;"></p>
+          <div class="action-row" style="gap:6px;">
+            <button type="button" class="btn btn-primary" id="bagToggleEquipBtn" style="flex:1; padding:8px; font-size:0.78rem;">✅ 슬롯에 장착</button>
+            <button type="button" class="btn btn-gold" id="bagAdRechargeBtn" style="flex:1.15; padding:8px; font-size:0.78rem;">📺 광고 보고 충전</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== 2. 전용 전체화면 상점 (#shopScreen — 배경 탭 포함 7종!) ==================== -->
+    <section id="shopScreen" class="screen-view hidden">
+      <div class="apf-shop-wrapper">
+        <div class="apf-shop-top" id="shopTopBackdrop">
+          <canvas id="shopBgCanvas" class="shop-bg-canvas" width="760" height="420"></canvas>
+          <div class="apf-shop-topbar">
+            <button class="apf-back-circle" onclick="showHome()" title="메인으로 돌아가기">⬅</button>
+            <div style="display:flex; align-items:center; gap:6px;">
+              <button type="button" id="shopFreeCdAdBtn" class="btn btn-gold" onclick="claimShopFreeCdAd()" style="padding:5px 9px; font-size:0.72rem; border-radius:999px;">📺 무료 +200 CD (0/3)</button>
+              <div class="cd-pill">
+                <span>💿</span>
+                <strong id="shopCdBalance">100</strong>
+              </div>
+            </div>
+          </div>
+
+          <div class="apf-shop-stage-row">
+            <div class="apf-char-zone">
+              <canvas id="shopAvatarCanvas" width="480" height="480" style="width:104px; height:104px; display:block;"></canvas>
+              <div class="shop-fishing-inv-row">
+                <button type="button" id="shopInvRodSlot" class="shop-inv-slot" onclick="inspectShopFishingSlot('fishing_rod')" title="낚싯대 착용 여부 확인">
+                  <div class="shop-inv-top">
+                    <canvas id="shopInvRodCanvas" width="480" height="480" class="shop-inv-canvas"></canvas>
+                    <span id="shopInvRodBadge" class="shop-inv-badge">미착용</span>
+                  </div>
+                  <span id="shopInvRodName" class="shop-inv-name">낚싯대</span>
+                </button>
+                <button type="button" id="shopInvBaitSlot" class="shop-inv-slot" onclick="inspectShopFishingSlot('fishing_bait')" title="미끼 착용 여부 확인">
+                  <div class="shop-inv-top">
+                    <canvas id="shopInvBaitCanvas" width="480" height="480" class="shop-inv-canvas"></canvas>
+                    <span id="shopInvBaitBadge" class="shop-inv-badge">미착용</span>
+                  </div>
+                  <span id="shopInvBaitName" class="shop-inv-name">미끼</span>
+                </button>
+              </div>
+            </div>
+
+            <div class="apf-info-board">
+              <div class="apf-info-paper">
+                <div class="apf-info-header-row">
+                  <span id="shopBoardTitle" class="apf-info-title">바가지 머리</span>
+                  <span id="shopBoardPriceBadge" class="apf-board-price-badge">✅ 보유중</span>
+                </div>
+                <div id="shopBoardDesc" class="apf-info-desc">아이템을 눌러 먼저 입어보세요!</div>
+              </div>
+              <div style="display:flex; gap:5px;">
+                <button class="btn" onclick="resetShopPreview()" style="flex:0.85; padding:7px 4px; font-size:0.75rem; white-space:nowrap;">🔄 원래옷</button>
+                <button class="btn btn-primary" id="shopConfirmActionBtn" style="flex:1.4; padding:7px 6px; font-size:0.78rem; white-space:nowrap;">✅ 장착 저장</button>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- [V2.0] 상점 4대 대분류 탭 + 소분류 서브탭 -->
+        <div class="shop-group-bar">
+          <button type="button" class="shop-group-btn active" data-shop-group="fashion" onclick="switchShopMainGroup('fashion')">👗 패션</button>
+          <button type="button" class="shop-group-btn" data-shop-group="item" onclick="switchShopMainGroup('item')">🎒 아이템</button>
+          <button type="button" class="shop-group-btn" data-shop-group="feature" onclick="switchShopMainGroup('feature')">🎣 기능</button>
+          <button type="button" class="shop-group-btn" data-shop-group="special" onclick="switchShopMainGroup('special')">🎫 변경권</button>
+        </div>
+        <div id="shopSubTabsFashion" class="apf-tab-bar" style="grid-template-columns: repeat(7, 1fr);">
+          <div class="apf-tab" data-shop-cat="bg" onclick="renderShopCategory('bg')"><span class="tab-ico">🏞️</span><span>배경</span></div>
+          <div class="apf-tab active" data-shop-cat="hair" onclick="renderShopCategory('hair')"><span class="tab-ico">💇</span><span>헤어</span></div>
+          <div class="apf-tab" data-shop-cat="hat" onclick="renderShopCategory('hat')"><span class="tab-ico">🎧</span><span>모자</span></div>
+          <div class="apf-tab" data-shop-cat="face" onclick="renderShopCategory('face')"><span class="tab-ico">👓</span><span>얼굴</span></div>
+          <div class="apf-tab" data-shop-cat="outfit" onclick="renderShopCategory('outfit')"><span class="tab-ico">👕</span><span>의상</span></div>
+          <div class="apf-tab" data-shop-cat="acc" onclick="renderShopCategory('acc')"><span class="tab-ico">🎸</span><span>악기</span></div>
+          <div class="apf-tab" data-shop-cat="wing" onclick="renderShopCategory('wing')"><span class="tab-ico">🪽</span><span>날개</span></div>
+        </div>
+        <div id="shopSubTabsFeature" class="apf-tab-bar hidden" style="grid-template-columns: repeat(2, 1fr);">
+          <div class="apf-tab" data-shop-cat="fishing_rod" onclick="renderShopCategory('fishing_rod')"><span class="tab-ico">🎣</span><span>낚싯대 (영구)</span></div>
+          <div class="apf-tab" data-shop-cat="fishing_bait" onclick="renderShopCategory('fishing_bait')"><span class="tab-ico">🪱</span><span>미끼 (소모품)</span></div>
+        </div>
+
+        <div class="apf-shop-bottom">
+          <div id="shopItemsGrid" class="apf-tile-grid"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== 3. 싱글 플레이 게임 설정 화면 ==================== -->
+    <section id="setupScreen" class="screen-view hidden">
+      <div class="card setup-card">
+        <div>
+          <button type="button" class="btn random-play-banner-btn" id="randomPlayBtn" onclick="startRandomGame()">
+            <span style="font-size:0.95rem;">🎲 랜덤 플레이 (세팅 없이 10문제 바로 시작!)</span>
+            <span style="font-size:0.71rem; opacity:0.92; font-weight:700;">전연대 · 문제 모드 & 난이도 단계 완전 랜덤</span>
+          </button>
+
+          <div class="setup-group">
+            <div class="section-label">
+              <span>① 출제 연대 (복수 선택)</span>
+              <span id="availablePoolCount" style="font-size:0.76rem; color:var(--text-sub); font-weight:700;"></span>
+            </div>
+            <div class="option-grid cols-4">
+              <div class="option-chip active" data-decade="1990s"><span class="chip-title">1990년대</span></div>
+              <div class="option-chip active" data-decade="2000s"><span class="chip-title">2000년대</span></div>
+              <div class="option-chip active" data-decade="2010s"><span class="chip-title">2010년대</span></div>
+              <div class="option-chip active" data-decade="2020s"><span class="chip-title">2020년대</span></div>
+            </div>
+          </div>
+
+          <div class="setup-group">
+            <div class="section-label"><span>② 문제 모드 선택</span></div>
+            <div class="option-grid cols-3">
+              <div class="option-chip active" data-mode="behind">
+                <span class="chip-title">📖 비하인드</span>
+                <span class="chip-desc">숨은 사연 보고</span>
+              </div>
+              <div class="option-chip" data-mode="lyrics">
+                <span class="chip-title">📝 가사</span>
+                <span class="chip-desc">가사 구절 보고</span>
+              </div>
+              <div class="option-chip" data-mode="onesec">
+                <span class="chip-title">⚡ 1초 듣기</span>
+                <span class="chip-desc">음원 1초 듣고</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="setup-group">
+            <div class="section-label"><span>③ 단계(난이도) 선택</span></div>
+            <div class="option-grid cols-3">
+              <div class="option-chip active" data-stage="1">
+                <span class="chip-title">1단계</span>
+                <span class="chip-desc">노래 맞히기</span>
+              </div>
+              <div class="option-chip" data-stage="2">
+                <span class="chip-title">2단계</span>
+                <span class="chip-desc">가수 맞히기</span>
+              </div>
+              <div class="option-chip" data-stage="3">
+                <span class="chip-title">3단계</span>
+                <span class="chip-desc">가수+노래 모두</span>
+              </div>
+            </div>
+          </div>
+
+          <div class="setup-group">
+            <div class="section-label"><span>④ 도전 문제 수</span></div>
+            <div class="option-grid cols-4">
+              <div class="option-chip active" data-limit="10"><span class="chip-title">10문제</span></div>
+              <div class="option-chip" data-limit="20"><span class="chip-title">20문제</span></div>
+              <div class="option-chip" data-limit="50"><span class="chip-title">50문제</span></div>
+              <div class="option-chip" data-limit="infinite"><span class="chip-title">무한도전</span></div>
+            </div>
+          </div>
+
+          <div class="special-toggles-row">
+            <div class="toggle-banner" id="toggleTimeAttackBtn">
+              <span>⏱️ 타임어택 (점수×2)</span>
+              <strong id="timeAttackStateText">OFF</strong>
+            </div>
+            <div class="toggle-banner" id="toggleHardModeBtn">
+              <span>🔥 찐팬 하드모드</span>
+              <strong id="hardModeStateText">OFF</strong>
+            </div>
+          </div>
+
+          <div class="score-rule-box">
+            <div class="score-rule-title">
+              <span>📊 점수 & 💿 CD 보상 기준</span>
+              <span style="font-size:0.72rem; color:var(--text-sub);">100점당 💿 10 CD 지급!</span>
+            </div>
+            <div class="score-rule-grid">
+              <div class="score-rule-item"><span>⭕ 기본 정답</span><strong class="score-plus">+100점</strong></div>
+              <div class="score-rule-item"><span>🔥 3단계 보너스</span><strong class="score-plus">+20점</strong></div>
+              <div class="score-rule-item"><span>⏱️ 타임어택 ON</span><strong class="score-plus">점수 ×2배</strong></div>
+              <div class="score-rule-item"><span>🔤·🔑·🎧 힌트</span><strong class="score-minus">-15~20점</strong></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="action-row" style="margin-top:4px; flex-shrink:0;">
+          <button class="btn" id="setupBackHomeBtn" onclick="showHome()" style="flex:1;">⬅ 뒤로가기</button>
+          <button class="btn btn-primary" id="startGameBtn" onclick="startGame()" style="flex:2.3; padding:11px;">게임 시작 ➔</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== 4. 인게임 화면 ==================== -->
+    <section id="gameScreen" class="screen-view hidden">
+      <div class="game-statusbar">
+        <div class="badge-group">
+          <span class="badge primary" id="badgeDecade">2010년대</span>
+          <span class="badge accent" id="badgeMode">비하인드</span>
+          <span class="badge" id="badgeStage">1단계</span>
+          <span class="badge gold hidden" id="badgeTimeAttack">⏱️×2</span>
+        </div>
+        <div class="score-board">
+          <span id="heartsDisplay" class="hidden" style="font-size:0.78rem;"></span>
+          <span id="progressText">1/10</span>
+          <span id="scoreText" style="color:var(--primary-dark);">0점</span>
+          <button class="header-btn" id="backToLobbyBtn" onclick="confirmExitSingleGame()">⬅ 나가기</button>
+        </div>
+      </div>
+
+      <div id="timerBarWrap" class="timer-bar-wrap hidden">
+        <div id="timerBarFill" class="timer-bar-fill"></div>
+      </div>
+
+      <div class="question-card">
+        <div id="givenInfoBanner" class="given-info-banner"></div>
+        <span class="question-type-tag" id="questionTypeTag">💡 비하인드 퀴즈</span>
+
+        <div id="questionContent" class="question-content"></div>
+
+        <div id="oneSecContainer" class="one-sec-player hidden">
+          <div class="vinyl-disc" id="vinylDisc">🎵</div>
+          <p id="audioStatusText" style="margin-bottom:6px; color:var(--text-sub); font-size:0.82rem;">
+            버튼을 누르면 정확히 1초간 재생됩니다.
+          </p>
+          <div style="display:flex; justify-content:center; gap:6px;">
+            <button class="btn btn-primary" onclick="playOneSecMain()">▶ 1초 듣기</button>
+            <button class="btn" onclick="playOneSecAltOffset()">🔄 다른 구간 1초</button>
+          </div>
+          <p class="itunes-source-credit">Audio preview provided courtesy of iTunes · Apple Music</p>
+        </div>
+      </div>
+
+      <div class="card answer-area">
+        <div class="input-row">
+          <div class="input-group" id="artistInputGroup">
+            <label for="artistInput">🎤 가수 이름</label>
+            <input type="text" id="artistInput" class="text-input" placeholder="가수 입력" autocomplete="off" />
+          </div>
+          <div class="input-group" id="titleInputGroup">
+            <label for="titleInput">🎵 노래 제목</label>
+            <input type="text" id="titleInput" class="text-input" placeholder="노래 제목 입력" autocomplete="off" />
+          </div>
+        </div>
+
+        <div class="action-row">
+          <button class="btn btn-primary" id="submitAnswerBtn" style="flex:2;">제출하기</button>
+          <button class="btn" id="skipQuestionBtn" style="flex:1;">패스(모름)</button>
+        </div>
+      </div>
+
+      <!-- [V2.0] 가방 장착 아이템 퀵슬롯 바 -->
+      <div id="singleItemSlotsBar" class="quick-items-bar"></div>
+
+      <div class="hints-bar">
+        <button class="hint-btn" id="hintLetterBtn">🔤 글자수 힌트<span class="hint-cost">(-15점)</span></button>
+        <button class="hint-btn" id="hintKeywordBtn">🔑 단어 힌트<span class="hint-cost">(-15점)</span></button>
+        <button class="hint-btn" id="hintAudioBtn">🎧 노래 힌트<span class="hint-cost">(-20점)</span></button>
+      </div>
+
+      <div id="hintsDisplay" class="hints-display"></div>
+    </section>
+
+    <!-- ==================== 5. 문제별 전용 정답/오답 화면 ==================== -->
+    <section id="judgeScreen" class="screen-view hidden">
+      <div id="judgeCard" class="card judge-card is-correct">
+        <div>
+          <span id="judgeStatusPill" class="judge-status-pill">⭕ 정답입니다!</span>
+          <p id="judgeUserSubmitInfo" style="font-size:0.84rem; color:var(--text-sub); margin-bottom:4px;"></p>
+          <img id="revealThumb" class="album-thumb" alt="앨범 커버" />
+          <div id="revealTitle" class="judge-song-title">가수 - 노래</div>
+          <div id="revealAliases" class="judge-song-sub">발매 연도</div>
+        </div>
+
+        <div id="revealNote" class="judge-note-box"></div>
+
+        <div class="action-row">
+          <button class="btn btn-accent" onclick="playFullPreviewInReveal()" style="flex:1;">🔊 노래 듣기</button>
+          <button class="btn btn-primary" id="nextQuestionBtn" style="flex:1.8; padding:11px;">다음 문제 넘어가기 ➔</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== 6. 최종 결과 화면 ==================== -->
+    <section id="resultScreen" class="screen-view hidden">
+      <div class="card result-card" id="resultCaptureTarget">
+        <div class="result-capture-area">
+          <div style="font-size:1.85rem; margin-bottom:2px;">🏆</div>
+          <div id="finalPlayerBadge" style="display:inline-block; background:#fef08a; border:2px solid #1e1b18; border-radius:999px; padding:3px 14px; font-size:0.82rem; font-weight:900; margin-bottom:5px; color:#1e1b18;">🎤 도전자: 닉네임</div>
+          <h2 id="finalRankTitle" style="font-size:1.22rem; font-weight:900; margin-bottom:4px;">전설의 음악왕</h2>
+          <div id="clearedSpecsBar" class="cleared-specs-bar"></div>
+          <p id="finalScoreText" style="color:var(--primary-dark); font-size:0.94rem; font-weight:800; margin-bottom:2px;"></p>
+          <p id="finalCdEarnedText" style="color:#b45309; font-size:0.82rem; font-weight:800; margin-bottom:6px;"></p>
+        </div>
+
+        <div id="historyList" class="history-scroll-box"></div>
+
+        <div class="action-row" id="resultBottomActions" style="flex-shrink:0; margin-top:8px;">
+          <button class="btn btn-gold" id="shareResultBtn" style="flex:1.2; padding:11px;">📸 결과 공유</button>
+          <button class="btn btn-primary" id="restartSameBtn" style="flex:1.2; padding:11px;">🔄 다시 도전</button>
+          <button class="btn" id="resultToLobbyBtn" onclick="showHome()" style="flex:0.9; padding:11px;">🏠 홈</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== 7. 멀티 대기실 화면 (방 목록 + 유저 캐릭터 아이콘 리스트) ==================== -->
+    <section id="plazaScreen" class="screen-view hidden">
+      <div class="card" style="flex:1; min-height:0; display:flex; flex-direction:column; justify-content:space-between; gap:8px;">
+        <div class="section-label" style="margin-bottom:0;">
+          <button class="header-btn" onclick="showHome()">⬅ 메인으로</button>
+          <span>🏟️ 멀티플레이 대기실 로비</span>
+          <button class="header-btn" onclick="refreshRoomsList()">🔄 새로고침</button>
+        </div>
+
+        <div style="flex:1.3; min-height:0; display:flex; flex-direction:column;">
+          <div class="section-label">
+            <span id="plazaRoomListLabel">⚔️ 입장 가능한 대전 방 목록</span>
+          </div>
+          <div class="plaza-filter-row" id="plazaRoomFilterTabs">
+            <div class="rank-chip active" data-plaza-filter="ALL" onclick="setPlazaRoomFilter('ALL')">🏟️ 전체</div>
+            <div class="rank-chip" data-plaza-filter="1v1" onclick="setPlazaRoomFilter('1v1')">⚡ 1:1</div>
+            <div class="rank-chip" data-plaza-filter="4p" onclick="setPlazaRoomFilter('4p')">🏆 4인</div>
+          </div>
+          <div id="plazaRoomsList" class="history-scroll-box" style="background:var(--bg-subtle); padding:8px; border-radius:11px; border:2px solid var(--game-border);"></div>
+        </div>
+
+        <div style="flex:1; min-height:0; display:flex; flex-direction:column;">
+          <div class="section-label">
+            <span>👥 현재 대기실 유저</span>
+            <span id="plazaOnlineCount" class="badge primary">대기실 유저 1명</span>
+          </div>
+          <div id="plazaUsersList" class="history-scroll-box" style="background:var(--bg-subtle); padding:8px; border-radius:11px; border:2px solid var(--game-border);"></div>
+        </div>
+
+        <div class="action-row" style="flex-shrink:0;">
+          <button class="btn" onclick="showHome()" style="flex:0.8;">⬅ 뒤로</button>
+          <button class="btn btn-primary" onclick="openCreateRoomModal('1v1')" style="flex:1.3;">⚡ 1:1 방 만들기</button>
+          <button class="btn btn-gold" onclick="openCreateRoomModal('4p')" style="flex:1.3;">🏆 4인 방 만들기</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== 8. 온라인 대전 대기방 전용 전체 화면 (#battleRoomScreen) ==================== -->
+    <section id="battleRoomScreen" class="screen-view hidden">
+      <div class="card" style="flex:1; min-height:0; display:flex; flex-direction:column; justify-content:space-between; gap:6px;">
+        <!-- 상단 방 제목 & 방 나가기 -->
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-shrink:0;">
+          <button class="header-btn" onclick="leaveBattleRoom()" style="color:var(--danger);">⬅ 방 나가기</button>
+          <h3 id="battleRoomTitle" style="font-size:0.94rem; font-weight:900;">⚔️ 온라인 대전 방</h3>
+        </div>
+
+        <!-- 선택된 게임 모드/연대/단계/아이템전 배지 바 -->
+        <div id="battleRoomConfigBar" style="display:flex; justify-content:center; gap:5px; flex-wrap:wrap; flex-shrink:0;"></div>
+
+        <!-- [V2.0] 방장 전용 대기방 설정 실시간 변경 패널 -->
+        <div id="battleHostConfigEditor" class="hidden" style="display:flex; gap:4px; flex-wrap:wrap; justify-content:center; background:var(--bg-subtle); padding:6px; border-radius:10px; border:1.5px solid var(--game-border); flex-shrink:0;">
+          <select id="roomEditDecade" class="room-edit-select" onchange="updateBattleRoomSettingsByHost()">
+            <option value="ALL">전연대</option>
+            <option value="1990s">1990s</option>
+            <option value="2000s">2000s</option>
+            <option value="2010s">2010s</option>
+            <option value="2020s">2020s</option>
+          </select>
+          <select id="roomEditMode" class="room-edit-select" onchange="updateBattleRoomSettingsByHost()">
+            <option value="behind">비하인드</option>
+            <option value="lyrics">가사</option>
+            <option value="onesec">1초듣기</option>
+          </select>
+          <select id="roomEditStage" class="room-edit-select" onchange="updateBattleRoomSettingsByHost()">
+            <option value="1">1단계(노래)</option>
+            <option value="2">2단계(가수)</option>
+            <option value="3">3단계(모두)</option>
+          </select>
+          <select id="roomEditItemMode" class="room-edit-select" onchange="updateBattleRoomSettingsByHost()">
+            <option value="notem">🚫 노템전</option>
+            <option value="item">🎒 아이템전</option>
+          </select>
+        </div>
+
+        <!-- 방 내부 와이드 스테이지 맵 (방에 들어온 유저들의 캐릭터가 보이고 바닥 터치 시 이동) -->
+        <div class="room-stage-wrap">
+          <canvas id="roomStageCanvas" width="460" height="145" style="width:100%; height:145px; display:block;"></canvas>
+        </div>
+
+        <!-- 참가자 실시간 점수판 -->
+        <div id="battlePlayersBoard" class="score-rule-grid" style="flex-shrink:0;"></div>
+
+        <!-- 방장 전용 대전 시작 버튼 (누르면 전용 플레이 화면 #battlePlayScreen 으로 전환!) -->
+        <button class="btn btn-gold btn-lg hidden" id="battleHostStartBtn" onclick="hostStartOnlineBattle()" style="flex-shrink:0; padding:12px;">
+          🚀 게임 스타트 (전용 플레이 화면으로!)
+        </button>
+        <div id="battleGuestWaitBanner" style="text-align:center; font-size:0.8rem; font-weight:800; color:var(--primary-dark); background:var(--primary-light); padding:8px; border-radius:10px; border:2px solid var(--primary-border); flex-shrink:0;">
+          ⏳ 방장이 게임을 시작하기를 기다리는 중...
+        </div>
+
+        <!-- 방 내부 실시간 채팅 로그 & 입력창 -->
+        <div style="flex:1; min-height:60px; display:flex; flex-direction:column; gap:5px;">
+          <div id="roomChatLog" style="flex:1; min-height:0; overflow-y:auto; background:var(--bg-subtle); border:2px solid var(--game-border); border-radius:10px; padding:6px 10px;"></div>
+          <div class="action-row room-chat-inputbar" style="flex-shrink:0;">
+            <input type="text" id="roomChatInput" class="text-input" placeholder="방 참가자들과 대화하기 (말풍선 표시)..." maxlength="40" style="padding:7px 10px; font-size:0.82rem;" onkeydown="if(event.key==='Enter') sendRoomChat()" />
+            <button class="btn btn-primary" onclick="sendRoomChat()" style="padding:7px 14px; font-size:0.82rem;">전송</button>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== 8-B. 온라인 대전 전용 플레이 화면 (#battlePlayScreen — 전자 미디 스튜디오 테마!) ==================== -->
+    <section id="battlePlayScreen" class="screen-view hidden">
+      <div class="midi-header-strip">
+        <div style="display:flex; align-items:center; gap:8px;">
+          <button class="header-btn" onclick="confirmExitOnlineBattle()" style="color:#fda4af;">⬅ 나가기</button>
+          <div class="midi-eq-bars"><span></span><span></span><span></span><span></span></div>
+          <span id="battlePlayProgress" style="font-size:0.86rem; font-weight:900; color:#7dd3fc;">ROUND 1 / 10</span>
+        </div>
+        <div style="display:flex; align-items:center; gap:6px;">
+          <span class="badge" style="background:rgba(15,23,42,0.7); color:#a7f3d0; border-color:#34d399; font-size:0.7rem;">∞ 무제한</span>
+          <span id="battlePlayModeBadge" class="badge primary">📖 비하인드</span>
+        </div>
+      </div>
+
+      <!-- 실시간 참가자 점수 HUD -->
+      <div id="battlePlayPlayersHud" class="score-rule-grid" style="flex-shrink:0;"></div>
+
+      <!-- 문제 전환 이펙트 배너 -->
+      <div id="battleRoundToast" class="battle-round-toast hidden"></div>
+
+      <!-- 전자 미디 문제 디스플레이 카드 -->
+      <div class="question-card" id="battleQuestionCard" style="flex:1; min-height:110px; max-height:none;">
+        <div class="given-info-banner" id="battlePlayHintBanner">
+          <span id="battlePlayHintText">🎤 가수 힌트</span>
+          <strong id="battlePlayYearTag">2020년</strong>
+        </div>
+        <span class="question-type-tag" id="battlePlayTypeTag">🎹 음악왕 라이브 퀴즈</span>
+
+        <div id="battlePlayQuestionText" class="question-content"></div>
+
+        <!-- 1초 듣기 모드 전용 오디오 플레이어 -->
+        <div id="battleOneSecBox" class="one-sec-player hidden">
+          <div class="vinyl-disc" id="battleVinylDisc">🎵</div>
+          <p id="battleAudioStatusText" style="margin-bottom:8px; color:#cbd5e1; font-size:0.84rem; font-weight:700;">
+            ▶ 버튼을 누르면 1초 구간이 재생됩니다!
+          </p>
+          <div style="display:flex; justify-content:center; gap:8px;">
+            <button class="btn btn-primary" onclick="playOnlineBattleAudio(0)">▶ 1초 듣기</button>
+            <button class="btn" onclick="playOnlineBattleAudio(1)">🔄 다른 구간</button>
+          </div>
+          <p class="itunes-source-credit">Audio preview provided courtesy of iTunes · Apple Music</p>
+        </div>
+      </div>
+
+      <!-- 전자 미디 정답 입력 콘솔 -->
+      <!-- [V2.0] 멀티 아이템전 공용 아이템 퀵슬롯 -->
+      <div id="battleItemSlotsBar" class="quick-items-bar hidden"></div>
+
+      <div class="card answer-area" id="battlePlayInputBox">
+        <div class="input-row">
+          <div class="input-group hidden" id="battleArtistInputGroup">
+            <label for="battleArtistInput">🎤 가수 이름</label>
+            <input type="text" id="battleArtistInput" class="text-input" placeholder="가수 입력" autocomplete="off" enterkeyhint="next" onkeydown="handleOnlineBattleInputEnter(event, 'artist')" />
+          </div>
+          <div class="input-group" id="battleTitleInputGroup">
+            <label for="battleTitleInput">🎵 정답 입력</label>
+            <input type="text" id="battleTitleInput" class="text-input" placeholder="노래/정답 입력!" autocomplete="off" enterkeyhint="send" onkeydown="handleOnlineBattleInputEnter(event, 'title')" />
+          </div>
+        </div>
+        <div class="action-row">
+          <button class="btn btn-gold" onclick="submitOnlineBattleAnswer()" style="flex:2.2; padding:12px;">⚡ 버저 정답 외치기!</button>
+          <button class="btn battle-pass-btn" id="battlePassBtn" onclick="passOnlineBattleQuestion()" style="flex:1; padding:12px; position:relative;">
+            ⏭️ 패스
+            <span id="battlePassBadge" class="battle-pass-badge hidden">0</span>
+          </button>
+        </div>
+      </div>
+
+      <!-- 대전 종료 시 결과 및 대기방 복귀 컨트롤 -->
+      <div class="card midi-console-card hidden" id="battleFinishedActions" style="text-align:center;">
+        <p id="battleWinnerBanner" style="font-size:1.05rem; font-weight:900; color:#fde047; margin-bottom:10px;"></p>
+        <div class="action-row">
+          <button class="btn btn-primary" onclick="returnToWaitingRoomFromBattle()" style="flex:1.4; padding:11px;">🔄 대기방으로 돌아가기</button>
+          <button class="btn" onclick="leaveBattleRoom()" style="flex:1; padding:11px; color:var(--danger);">🚪 방 나가기</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== 9. 명예의 전당 랭킹 전용 전체 화면 (#rankingScreen — 팝업 & 윈도우 드롭박스 제거!) ==================== -->
+    <section id="rankingScreen" class="screen-view hidden">
+      <div class="card" style="flex:1; min-height:0; display:flex; flex-direction:column; justify-content:space-between; gap:8px;">
+        <!-- 상단 바 -->
+        <div style="display:flex; justify-content:space-between; align-items:center; flex-shrink:0;">
+          <button class="apf-back-circle" onclick="showHome()" title="메인으로 돌아가기" style="width:36px; height:36px; font-size:1rem;">⬅</button>
+          <h3 style="font-size:1.05rem; font-weight:900;">🏆 실시간 명예의 전당 랭킹</h3>
+          <button class="header-btn" onclick="loadRankingsList()">🔄 갱신</button>
+        </div>
+
+        <!-- 커스텀 게임 필터 칩 버튼 (윈도우 기본 select 드롭박스 완전 대체!) -->
+        <div class="rank-filter-group">
+          <div class="rank-filter-row">
+            <div class="rank-chip active" data-rank-mode="ALL" onclick="setRankFilter('mode', 'ALL')">전체 모드</div>
+            <div class="rank-chip" data-rank-mode="behind" onclick="setRankFilter('mode', 'behind')">📖 비하인드</div>
+            <div class="rank-chip" data-rank-mode="lyrics" onclick="setRankFilter('mode', 'lyrics')">📝 가사</div>
+            <div class="rank-chip" data-rank-mode="onesec" onclick="setRankFilter('mode', 'onesec')">⚡ 1초듣기</div>
+          </div>
+          <div class="rank-filter-row">
+            <div class="rank-chip active" data-rank-stage="ALL" onclick="setRankFilter('stage', 'ALL')">전체 단계</div>
+            <div class="rank-chip" data-rank-stage="1" onclick="setRankFilter('stage', '1')">1단계(노래)</div>
+            <div class="rank-chip" data-rank-stage="2" onclick="setRankFilter('stage', '2')">2단계(가수)</div>
+            <div class="rank-chip" data-rank-stage="3" onclick="setRankFilter('stage', '3')">3단계(모두)</div>
+          </div>
+        </div>
+
+        <!-- 선택한 필터 기준 내 현재 순위 & 중앙 상단 대형 TOP 3 포디엄 카드 -->
+        <div id="rankingMyCurrentRankBanner" class="ranking-my-rank-banner">현재 기준 내 순위를 계산하는 중...</div>
+        <div id="rankingTop3Podium" class="ranking-top3-podium"></div>
+
+        <!-- 랭킹 리스트 스크롤 박스 (4위 ~ 20위) -->
+        <div id="rankingListContainer" class="history-scroll-box" style="flex:1; min-height:0;"></div>
+
+        <button class="btn" onclick="showHome()" style="width:100%; flex-shrink:0;">⬅ 메인 화면으로 돌아가기</button>
+      </div>
+    </section>
+
+    <!-- ==================== 10. 카카오톡 스타일 전체화면 친구 목록 페이지 (#socialScreen) ==================== -->
+    <section id="socialScreen" class="screen-view hidden">
+      <div class="kakao-screen-card">
+        <div class="kakao-header">
+          <button class="apf-back-circle" onclick="showHome()" title="메인으로 돌아가기" style="width:36px; height:36px; font-size:1rem;">⬅</button>
+          <h3 style="font-size:1.05rem; font-weight:900;">💬 친구</h3>
+          <div style="display:flex; gap:5px;">
+            <button class="header-btn" id="socialTab_friends" onclick="switchSocialTab('friends')" style="background:#fef08a;">👥 친구</button>
+            <button class="header-btn" id="socialTab_requests" onclick="switchSocialTab('requests')">➕ 추가</button>
+          </div>
+        </div>
+
+        <!-- 친구 목록 뷰 (카카오톡 스타일: 내 프로필 + 친구 N 리스트) -->
+        <div id="socialPane_friends" style="flex:1; min-height:0; display:flex; flex-direction:column;">
+          <div class="kakao-my-profile-box" onclick="openMyProfileModal()" style="cursor:pointer;">
+            <canvas id="socialMyAvatarCanvas" class="kakao-avatar-sq" width="480" height="480"></canvas>
+            <div style="flex:1; min-width:0;">
+              <div id="socialMyNickDisplay" class="kakao-friend-nick" style="font-size:1rem;">내 닉네임</div>
+              <div id="socialMyBioDisplay" class="kakao-friend-bio">상태 메시지</div>
+            </div>
+            <span class="badge primary">내 프로필</span>
+          </div>
+
+          <div class="kakao-section-divider" id="kakaoFriendsCountLabel">친구 0</div>
+          <div id="friendsListContainer" class="kakao-friend-list"></div>
+        </div>
+
+        <!-- 친구 찾기 & 받은/보낸 요청 뷰 -->
+        <div id="socialPane_requests" class="hidden" style="flex:1; min-height:0; display:flex; flex-direction:column; padding:12px; gap:8px;">
+          <div class="action-row" style="flex-shrink:0;">
+            <input type="text" id="friendSearchInput" class="text-input" placeholder="추가할 친구 닉네임 입력..." style="padding:8px 10px;" onkeydown="if(event.key==='Enter') sendFriendRequestByNick()" />
+            <button class="btn btn-primary" onclick="sendFriendRequestByNick()">친구 신청</button>
+          </div>
+          <div class="section-label" style="margin-bottom:0; flex-shrink:0;"><span>📩 받은 / 보낸 친구 요청</span></div>
+          <div id="friendRequestsContainer" class="history-scroll-box" style="flex:1; min-height:0;"></div>
+        </div>
+      </div>
+    </section>
+
+    <!-- ==================== 11. 카카오톡 스타일 전체화면 1:1 DM 채팅방 (#dmChatScreen) ==================== -->
+    <section id="dmChatScreen" class="screen-view hidden">
+      <div class="kakao-chat-room">
+        <input type="hidden" id="dmTargetId" />
+        <input type="hidden" id="dmTargetNick" />
+
+        <div class="kakao-chat-header">
+          <div style="display:flex; align-items:center; gap:9px;">
+            <button class="header-btn" onclick="switchScreen('socialScreen'); loadFriendsData();" style="padding:6px 10px;">⬅ 뒤로</button>
+            <canvas id="dmPeerAvatarCanvas" class="kakao-avatar-sq" width="480" height="480" style="width:36px; height:36px; border-radius:12px;"></canvas>
+            <strong id="dmPeerNickTitle" style="font-size:1rem; font-weight:900; color:#1e1b18;">친구</strong>
+          </div>
+          <div style="display:flex; gap:5px;">
+            <button class="header-btn" onclick="loadCurrentDmConversation()" title="새로고침">🔄</button>
+            <button class="header-btn" onclick="inspectOtherUser(document.getElementById('dmTargetId').value, document.getElementById('dmTargetNick').value)" title="프로필 보기">🪪</button>
+            <button class="header-btn" onclick="openReportBlockDialog(document.getElementById('dmTargetId').value, document.getElementById('dmTargetNick').value)" title="신고 및 차단" style="color:#be123c;">🚨</button>
+          </div>
+        </div>
+
+        <div id="dmChatMessages" class="kakao-chat-messages"></div>
+
+        <div class="kakao-chat-inputbar">
+          <input type="text" id="dmContentInput" class="text-input" placeholder="메시지 보내기..." autocomplete="off" style="flex:1; padding:9px 12px;" onkeydown="if(event.key==='Enter') sendDirectMessage()" />
+          <button type="button" class="kakao-send-btn" onclick="sendDirectMessage()">전송</button>
+        </div>
+      </div>
+    </section>
+
+    <!-- =================== 낚시터 화면 (전용 방치형 · 소셜) =================== -->
+    <section id="fishingScreen" class="screen-view hidden">
+      <!-- 상단 낚시터 배경 & 캐릭터 무대 (바닥 터치 이동) -->
+      <div id="fishingStageArea" class="fishing-stage-area" onclick="handleFishingStageTap(event)">
+        <canvas id="fishingBgCanvas" class="fishing-bg-canvas"></canvas>
+        <div id="fishingPlayersLayer" class="fishing-players-layer"></div>
+
+        <!-- 좌측 상단: 나가기 · 사운드 · 채널명 -->
+        <div class="fishing-top-left">
+          <div class="fishing-top-btn-row">
+            <button type="button" class="fishing-exit-btn" onclick="event.stopPropagation(); confirmExitFishingRoom()">← 나가기</button>
+            <button type="button" id="fishingSoundBtn" class="fishing-sound-mini-btn" onclick="event.stopPropagation(); toggleBgmMute()" title="배경음악 켜기/끄기">🔊</button>
+          </div>
+          <div id="fishingChannelLabel" class="fishing-channel-badge">🎣 통합 서버 · 잔잔한 호수</div>
+          <div id="fishingMyBalanceBadge" class="fishing-balance-badge">
+            <span id="fishingMyCdText" class="fishing-balance-line is-cd">💿 보유 0 CD</span>
+            <span id="fishingMyExpText" class="fishing-balance-line is-exp">✨ Lv.1 · 0 EXP</span>
+          </div>
+        </div>
+
+        <!-- 중앙 상단: 하루 누적시간 (매일 오전 06:00 초기화) -->
+        <div class="fishing-top-center">
+          <div id="fishingElapsedTimer" class="fishing-elapsed-pill">⏱️ 00:00:00 / 06:00:00</div>
+          <div class="fishing-reset-sub">매일 오전 06:00 초기화</div>
+        </div>
+
+        <!-- 우측 상단 모서리: 누적 경험치 / CD 체력바 + 접속 중인 유저 닉네임 리스트 -->
+        <div class="fishing-right-column">
+          <div class="fishing-hud-box">
+            <div class="fishing-hud-gauge">
+              <div id="fishingExpStatText" class="fishing-hud-stat-row">경험치 +0 (0/1,000)</div>
+              <div class="fishing-hp-track">
+                <div id="fishingExpBarFill" class="fishing-hp-fill is-exp" style="width:0%"></div>
+              </div>
+            </div>
+            <div class="fishing-hud-gauge">
+              <div id="fishingCdStatText" class="fishing-hud-stat-row">CD +0 (0/3,000)</div>
+              <div class="fishing-hp-track">
+                <div id="fishingCdBarFill" class="fishing-hp-fill is-cd" style="width:0%"></div>
+              </div>
+            </div>
+            <div id="fishingBuffBadge" class="fishing-buff-pill hidden"></div>
+            <button type="button" id="fishing2xBuffBtn" class="btn btn-gold" onclick="activateFishing2xBuffAd()" style="margin-top:4px; padding:4px 8px; font-size:0.68rem; width:100%;">📺 30분 CD 2배</button>
+          </div>
+
+          <div id="fishingUsersOverlay" class="fishing-users-overlay">
+            <div id="fishingOnlineCount" class="fishing-users-title">접속자 1명</div>
+            <div id="fishingOnlineUsersList" class="fishing-online-users-list"></div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 하단 실시간 휘발성 채팅 영역 (화면 밀림 없이 입력창만 키보드 위로 부양) -->
+      <div class="fishing-chat-panel">
+        <div id="fishingChatLog" class="fishing-chat-log"></div>
+        <form id="fishingInputBar" class="fishing-input-bar" onsubmit="event.preventDefault(); sendFishingChat();">
+          <input
+            type="text"
+            id="fishingChatInput"
+            class="text-input fishing-chat-input"
+            maxlength="80"
+            enterkeyhint="send"
+            placeholder="낚시터 채팅을 입력하세요..."
+            autocomplete="off"
+          />
+          <button type="submit" class="fishing-send-btn" onmousedown="event.preventDefault()">전송</button>
+        </form>
+      </div>
+    </section>
+
+    <!-- 낚시터 입·퇴장 2초 전용 로딩 오버레이 (흰 배경 + 바운스 캐릭터 + 2초 프로그레스) -->
+    <div id="fishingLoadingOverlay" class="fishing-loading-overlay hidden">
+      <div id="fishingLoadingTitle" class="fishing-loading-title">🎣 낚시터 가는중..</div>
+      <div class="fishing-loading-center">
+        <canvas id="fishingLoadingAvatar" class="fishing-loading-avatar" width="480" height="480"></canvas>
+        <div class="fishing-loading-bar-track">
+          <div id="fishingLoadingBarFill" class="fishing-loading-bar-fill"></div>
+        </div>
+      </div>
+      <div class="fishing-loading-sub">잠시만 기다려 주세요</div>
+    </div>
+
+    <!-- 우측 하단 둥둥 떠있는 사운드 ON/OFF 플로팅 버튼 (홈 화면에서는 카드 우측 하단 모서리에 정렬) -->
+    <button type="button" id="floatingSoundBtn" class="floating-sound-btn hidden" onclick="toggleBgmMute()" title="배경음악 켜기/끄기">🔊</button>
+  </div>
+
+  <!-- ==================== [모달 0-A] 회원가입 전용 남/여 캐릭터 선택 모달 ==================== -->
+  <div id="signupGenderModal" class="modal-backdrop hidden">
+    <div class="modal-content" style="text-align:center;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <h3 style="font-size:1.02rem;">🎉 회원가입 · 기본 캐릭터 선택</h3>
+        <button class="header-btn" onclick="closeModal('signupGenderModal')">닫기 ✕</button>
+      </div>
+      <p style="font-size:0.82rem; color:var(--text-sub); margin-bottom:10px;">
+        시작할 캐릭터 성별을 선택해주세요!<br />
+        <span style="font-size:0.74rem; color:#b45309; font-weight:800;">※ 가입 후 성별 변경 시 상점 [성별 변경권 10,000 CD] 필요</span>
+      </p>
+      <div class="home-wide-stage" style="max-width:320px; margin:0 auto 12px;">
+        <canvas id="signupCharPreview" width="640" height="320" style="width:100%; height:155px; display:block;"></canvas>
+      </div>
+      <div style="display:flex; gap:8px; margin-bottom:14px;">
+        <button class="option-chip active" data-signup-gender="male" onclick="selectSignupGender('male')" style="flex:1; padding:10px;">
+          <span class="chip-title">👦 남자 캐릭터</span>
+        </button>
+        <button class="option-chip" data-signup-gender="female" onclick="selectSignupGender('female')" style="flex:1; padding:10px;">
+          <span class="chip-title">👧 여자 캐릭터</span>
+        </button>
+      </div>
+      <div class="action-row">
+        <button class="btn" onclick="closeModal('signupGenderModal')" style="flex:0.9;">취소</button>
+        <button class="btn btn-gold" onclick="confirmSignupWithGender()" style="flex:1.6; padding:12px;">🎉 이 캐릭터로 가입 완료</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== [모달 0] 멀티 플레이 대전 방식 선택 (1:1 vs 4인) ==================== -->
+  <div id="multiModeSelectModal" class="modal-backdrop hidden">
+    <div class="modal-content" style="text-align:center;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:12px;">
+        <h3 style="font-size:1.05rem;">⚔️ 멀티 플레이 대결 선택</h3>
+        <button class="header-btn" onclick="closeModal('multiModeSelectModal')">닫기 ✕</button>
+      </div>
+      <p style="font-size:0.84rem; color:var(--text-sub); margin-bottom:14px;">
+        원하는 대결 인원 모드를 선택하면 해당 대기실로 바로 입장합니다!
+      </p>
+      <div style="display:flex; flex-direction:column; gap:10px;">
+        <button class="btn btn-primary btn-lg" onclick="selectMultiRoomMode('1v1')" style="padding:16px; flex-direction:column; gap:3px;">
+          <span style="font-size:1.05rem;">⚡ 1:1 선착순 대결</span>
+          <span style="font-size:0.76rem; font-weight:500; opacity:0.9;">1대1 맞대결! 먼저 맞히는 사람이 점수를 가져가는 실시간 승부</span>
+        </button>
+        <button class="btn btn-gold btn-lg" onclick="selectMultiRoomMode('4p')" style="padding:16px; flex-direction:column; gap:3px;">
+          <span style="font-size:1.05rem;">🏆 4인 점수제 대결</span>
+          <span style="font-size:0.76rem; font-weight:500; opacity:0.95;">최대 4인이 함께 즐기는 10라운드 누적 점수 대결</span>
+        </button>
+        <button class="btn" onclick="selectMultiRoomMode('ALL')" style="padding:9px; font-size:0.8rem;">
+          🏟️ 전체 대기실(1:1·4인 모두) 보기
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== [모달 2] 내 프로필 (통산 전적 & 최고기록 & 내 랭킹 순위) ==================== -->
+  <div id="profileModal" class="modal-backdrop hidden">
+    <div class="modal-content">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <h3 style="font-size:1rem;">🪪 내 프로필 & 통산 전적</h3>
+        <button class="header-btn" onclick="closeModal('profileModal')">닫기 ✕</button>
+      </div>
+      <div style="display:flex; align-items:center; gap:14px; background:var(--bg-subtle); padding:12px; border-radius:14px; border:2px solid var(--game-border); margin-bottom:10px;">
+        <canvas id="profileAvatarCanvas" width="480" height="480" style="width:92px; height:92px; border-radius:14px; border:2px solid var(--game-border); flex-shrink:0;"></canvas>
+        <div style="flex:1;">
+          <h4 id="profileNickDisplay" style="font-size:1.15rem; font-weight:900; margin-bottom:2px;">닉네임</h4>
+          <p id="profileTitleDisplay" style="font-size:0.8rem; font-weight:900; color:var(--primary-dark); margin-bottom:2px;">Lv.1 🐣 방구석 리스너</p>
+          <p id="profileCdDisplay" style="font-size:0.82rem; color:#b45309; font-weight:800; margin-bottom:5px;"></p>
+          <div class="exp-bar-wrap" style="margin-bottom:6px;">
+            <div class="exp-bar-top">
+              <span id="profileExpText">0 / 1,000 EXP</span>
+              <span id="profileExpPercent">0.0%</span>
+            </div>
+            <div class="exp-progress-track" style="height:9px;">
+              <div id="profileExpFill" class="exp-progress-fill" style="width:0%;"></div>
+            </div>
+          </div>
+          <div class="score-rule-grid">
+            <div class="score-rule-item"><span>플레이</span><strong id="statPlayCount">0회</strong></div>
+            <div class="score-rule-item"><span>최고점</span><strong id="statBestScore" class="score-plus">0점</strong></div>
+            <div class="score-rule-item"><span>정답률</span><strong id="statAvgAcc">0%</strong></div>
+            <div class="score-rule-item"><span>랭킹</span><strong id="statMyRank" style="color:#b45309;">-</strong></div>
+          </div>
+          <div class="battle-stats-grid" style="margin-top:6px;">
+            <div class="battle-stat-pill"><span>⚡ 1:1 대결</span><strong id="profileBattle1v1">0전 0승 0패 (0%)</strong></div>
+            <div class="battle-stat-pill"><span>🏆 4인 대결</span><strong id="profileBattle4p">0전 0승 0패 (0%)</strong></div>
+          </div>
+        </div>
+      </div>
+      <div class="input-group" style="margin-bottom:10px;">
+        <label>💬 상태 메시지 (한줄 소개)</label>
+        <input type="text" id="profileBioInput" class="text-input" maxlength="50" />
+      </div>
+      <div class="action-row" style="margin-bottom:6px;">
+        <button class="btn btn-primary" onclick="saveMyBio()" style="flex:1.4;">소개글 저장</button>
+        <button class="btn" onclick="closeModal('profileModal'); openShopModal(); renderShopCategory('special');" style="flex:1;">🎫 변경권</button>
+      </div>
+      <div class="action-row">
+        <button class="btn" onclick="handleLogout()" style="flex:1; color:var(--danger);">🚪 로그아웃</button>
+        <button class="btn" onclick="handleDeleteAccount()" style="flex:1; color:#be123c; background:#fff1f2; border-color:#f43f5e;">⚠️ 회원탈퇴</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== [모달 3] 타 유저 프로필 보기 (내 프로필과 동일 전적 UI) ==================== -->
+  <div id="userInspectModal" class="modal-backdrop hidden">
+    <div class="modal-content">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <h3 style="font-size:1rem;">👤 유저 프로필 & 통산 전적</h3>
+        <button class="header-btn" onclick="closeModal('userInspectModal')">닫기 ✕</button>
+      </div>
+      <input type="hidden" id="inspectTargetId" />
+      <div style="display:flex; align-items:center; gap:14px; background:var(--bg-subtle); padding:12px; border-radius:14px; border:2px solid var(--game-border); margin-bottom:10px;">
+        <canvas id="inspectAvatarCanvas" width="480" height="480" style="width:92px; height:92px; border-radius:14px; border:2px solid var(--game-border); flex-shrink:0;"></canvas>
+        <div style="flex:1; min-width:0;">
+          <h4 id="inspectNick" style="font-size:1.15rem; font-weight:900; margin-bottom:2px;">닉네임</h4>
+          <p id="inspectTitleDisplay" style="font-size:0.8rem; font-weight:900; color:var(--primary-dark); margin-bottom:2px;">Lv.1 🐣 방구석 리스너</p>
+          <p id="inspectCdDisplay" style="font-size:0.82rem; color:#b45309; font-weight:800; margin-bottom:5px;">💿 0 CD</p>
+          <div class="exp-bar-wrap" style="margin-bottom:6px;">
+            <div class="exp-bar-top">
+              <span id="inspectExpText">0 / 1,000 EXP</span>
+              <span id="inspectExpPercent">0.0%</span>
+            </div>
+            <div class="exp-progress-track" style="height:9px;">
+              <div id="inspectExpFill" class="exp-progress-fill" style="width:0%;"></div>
+            </div>
+          </div>
+          <div class="score-rule-grid">
+            <div class="score-rule-item"><span>플레이</span><strong id="inspectPlayCount">0회</strong></div>
+            <div class="score-rule-item"><span>최고점</span><strong id="inspectBestScore" class="score-plus">0점</strong></div>
+            <div class="score-rule-item"><span>정답률</span><strong id="inspectAvgAcc">0%</strong></div>
+            <div class="score-rule-item"><span>랭킹</span><strong id="inspectUserRank" style="color:#b45309;">-</strong></div>
+          </div>
+          <div class="battle-stats-grid" style="margin-top:6px;">
+            <div class="battle-stat-pill"><span>⚡ 1:1 대결</span><strong id="inspectBattle1v1">0전 0승 0패 (0%)</strong></div>
+            <div class="battle-stat-pill"><span>🏆 4인 대결</span><strong id="inspectBattle4p">0전 0승 0패 (0%)</strong></div>
+          </div>
+        </div>
+      </div>
+      <p id="inspectBio" style="font-size:0.85rem; color:var(--text-sub); background:var(--bg-subtle); padding:9px 10px; border-radius:10px; border:1.5px solid #e2e8f0; margin-bottom:12px; text-align:center;"></p>
+      <div class="action-row" id="inspectActionRow" style="flex-wrap:wrap;">
+        <button class="btn btn-primary" id="inspectFriendBtn" style="flex:1;" onclick="sendFriendRequestByNick(document.getElementById('inspectNick').textContent)">➕ 친구 신청</button>
+        <button class="btn btn-accent" id="inspectDmBtn" style="flex:1;" onclick="prepareDmTo(document.getElementById('inspectTargetId').value, document.getElementById('inspectNick').textContent)">💬 1:1 채팅</button>
+        <button class="btn" id="inspectReportBlockBtn" style="flex:0.95; color:#be123c; background:#fff1f2; border-color:#f43f5e;" onclick="openReportBlockDialog(document.getElementById('inspectTargetId').value, document.getElementById('inspectNick').textContent)">🚨 신고/차단</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== [모달 3-B] 상점 입어보기 일괄/선택 구매 모달 ==================== -->
+  <div id="shopMultiBuyModal" class="modal-backdrop hidden" style="z-index:2050;">
+    <div class="modal-content" style="max-width:390px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <h3 style="font-size:1rem;">🛍️ 입어본 아이템 선택 구매</h3>
+        <button class="header-btn" onclick="closeModal('shopMultiBuyModal')">닫기 ✕</button>
+      </div>
+      <p style="font-size:0.8rem; color:var(--text-sub); margin-bottom:10px; line-height:1.4;">
+        현재 입어보고 있는 <strong>미구매 아이템</strong>이 여러 개 있습니다.<br/>
+        구매할 아이템을 선택해 주세요. (선택하지 않은 아이템은 구매·저장되지 않습니다)
+      </p>
+      <div id="shopMultiBuyList" class="shop-multibuy-list"></div>
+      <div class="shop-multibuy-summary">
+        <div>
+          <span style="font-size:0.78rem; color:var(--text-sub);">내 보유: <strong id="shopMultiBuyBalance">0 CD</strong></span>
+        </div>
+        <div style="font-size:0.98rem; font-weight:900; color:#b45309;">
+          총 결제: <span id="shopMultiBuyTotal">💿 0 CD</span>
+        </div>
+      </div>
+      <div class="action-row" style="margin-top:10px;">
+        <button class="btn" onclick="closeModal('shopMultiBuyModal')" style="flex:0.8;">취소</button>
+        <button class="btn btn-gold" id="shopMultiBuyConfirmBtn" onclick="confirmMultiBuyShopItems()" style="flex:1.6;">🛍️ 선택 항목 구매 · 장착</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== [모달 7] 업데이트 내역 ==================== -->
+  <div id="patchNotesModal" class="modal-backdrop hidden">
+    <div class="modal-content">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <h3 style="font-size:1rem;">📢 음악왕 업데이트 내역</h3>
+        <button class="header-btn" onclick="closeModal('patchNotesModal')">닫기 ✕</button>
+      </div>
+      <div class="judge-note-box" style="max-height:360px;">
+        <p style="font-weight:900; color:#2563eb; margin-bottom:4px;">🛡️ v10.27 원스토어 웹뷰 · 모바일 키보드 화면 밀림(Viewport Resize) 완전 방어</p>
+        <ul style="padding-left:18px; margin-bottom:12px; font-size:0.82rem;">
+          <li><strong><code>interactive-widget=overlays-content</code> + <code>VirtualKeyboard</code> 오버레이</strong>: 원스토어 인앱 웹뷰 및 모바일 브라우저에서 가상 키보드 등장 시 전체 뷰포트·배경이 찌그러지거나 위로 밀리지 않도록 오버레이 모드 적용</li>
+          <li><strong>고정 px 뷰포트 잠금(<code>--app-locked-h</code>) &amp; 루트 스크롤 차단</strong>: <code>100dvh</code>/<code>100vh</code> 대신 JS 고정 px + <code>100svh</code> + <code>overflow: clip</code> 및 <code>focusin</code> 스크롤 원천 복원으로 배경·낚시터 호수·상단 헤더 위치 100% 고정</li>
+          <li><strong>활성 입력창만 정밀 부양</strong>: 낚시터 채팅·1:1 DM·대전 대기방·인게임 입력 박스 및 모달만 키보드 위 여유 높이만큼 부드럽게 부양</li>
+        </ul>
+
+        <p style="font-weight:900; color:var(--primary-dark); margin-bottom:4px;">🎉 v10.26 문제 DB 2배 확장(448곡) · 랭킹 대형 포디엄 &amp; CD 보너스 · 상점/낚시터 개선</p>
+        <ul style="padding-left:18px; margin-bottom:12px; font-size:0.82rem;">
+          <li><strong>전 연대 K-POP 문제 2배 확장 (총 448곡)</strong>: 1990s(106곡)·2000s(122곡)·2010s(114곡)·2020s(106곡) 전수 실가사·발매연도 검수 및 <code>남자를 몰라</code>·<code>김미김미 (Gimme! Gimme!)</code> iTunes 음원 정밀 매칭·포인트 단어/비하인드 가수명 자동 마스킹 적용</li>
+          <li><strong>랭킹 대형 포디엄 카드 &amp; CD 동시 배율 보너스</strong>: 상단 중앙 <strong>2위–1위–3위 대형 포디엄</strong>과 내 현재 순위 배너 신설, TOP 3 최초 진입/순위 갱신 시 경험치와 함께 <strong>보너스 CD 동시 ×5배(1위) / ×3배(2위) / ×2배(3위)</strong> 지급</li>
+          <li><strong>낚시터 보유 현황 HUD &amp; 상점 구매 버튼 개선</strong>: <code>통합 서버 · 잔잔한 호수</code> 바로 아래 내 보유 <code>CD · Lv/EXP</code> 실시간 표기, 상점에서 미구매 아이템 1개 이상 시착 시 확인 버튼 <code>🛍️ 구매하기</code> 자동 전환</li>
+        </ul>
+
+        <p style="font-weight:900; color:#16a34a; margin-bottom:4px;">🌐 v10.23 낚시터 통합 서버 실시간 동기화 · 백그라운드 유지 &amp; 강제종료 자동 퇴장</p>
+        <ul style="padding-left:18px; margin-bottom:12px; font-size:0.82rem;">
+          <li><strong>전원 단일 통합 서버 접속 (<code>fishing_room_1</code>)</strong>: 실시간 Broadcast/Presence + 4초 DB 로스터(<code>_fishingLive</code>) 결합 및 소켓 끊김 자동 재연결 워치독으로 모든 유저가 한 방에서 실시간 이동·채팅 동기화</li>
+          <li><strong>폰 홈버튼 유지 &amp; 복귀 재합류</strong>: 홈버튼으로 내려도 방 체류(<code>💤</code>)·경험치/CD 적립이 계속 유지되며, 복귀·탭 재로드 시 낚시터로 즉시 자동 복귀</li>
+          <li><strong>강제종료(스와이프/앱 닫기) 자동 퇴장</strong>: <code>beforeunload</code>/<code>pagehide</code> 시 <code>keepalive</code> 서버 패치 및 이탈 브로드캐스트로 유령 캐릭터 잔류를 즉시 정리</li>
+        </ul>
+
+        <p style="font-weight:900; color:#0284c7; margin-bottom:4px;">🎣 v10.22 상점 낚싯대·미끼 각 4종 출시 &amp; 캐릭터 착용 인벤토리 슬롯</p>
+        <ul style="padding-left:18px; margin-bottom:12px; font-size:0.82rem;">
+          <li><strong>낚싯대 4종 출시 (경험치 버프)</strong>: 나무(5,000 CD · +5%), 카본(10,000 CD · +10%), 루비(20,000 CD · +20%), 황금 낚싯대(30,000 CD · +30%)</li>
+          <li><strong>미끼 4종 출시 (CD 버프)</strong>: 지렁이(4,000 CD · +10%), 새우(8,000 CD · +20%), 루어(16,000 CD · +30%), 황금 떡밥(24,000 CD · +50%)</li>
+          <li><strong>상점 캐릭터 하단 인벤토리 2칸</strong>: 낚싯대·미끼 전용 슬롯에서 <code>착용중(+버프%)</code> / <code>미착용</code> 여부를 즉시 확인하고 터치 한 번으로 탭 이동·장착 해제 가능</li>
+        </ul>
+
+        <p style="font-weight:900; color:#16a34a; margin-bottom:4px;">🎣 v10.21 낚시터 채팅·말풍선·배경 라인·상단 여백 &amp; 퇴장 확인 개선</p>
+        <ul style="padding-left:18px; margin-bottom:12px; font-size:0.82rem;">
+          <li><strong>실시간 채팅 &amp; 말풍선 즉시 반영</strong>: 전송 시 내 말풍선·채팅창 즉시 출력(<code>&lt;form&gt;</code> + <code>enterkeyhint="send"</code> 모바일 전송 키 완벽 대응)</li>
+          <li><strong>맵 외곽 라인 &amp; 카메라 홀 회피</strong>: 낚시터 전체화면 밀착, 구름·언덕·호수·수련·찌·나무 부두 기둥에 진한 <code>#1e1b18</code> 외곽선 보강, 상단 UI 전체 하향 조정</li>
+          <li><strong>키보드 화면 움직임 완전 차단 &amp; 퇴장 확인</strong>: <code>keyboard-open</code> 패딩 간섭 제거 및 상단 무대 높이 잠금, <code>← 나가기</code>·물리 뒤로가기 시 퇴장 확인 모달 출력</li>
+          <li><strong>낚시터 BGM(<code>fish.mp3</code>) 안정 재생</strong>: <code>preload="none"</code> + 로드 에러 시 대소문자 폴백·자동 재시도 적용</li>
+        </ul>
+
+        <p style="font-weight:900; color:#16a34a; margin-bottom:4px;">🎣 v10.20 방치형 소셜 낚시터 · 홈 2×3 버튼 개편</p>
+        <ul style="padding-left:18px; margin-bottom:12px; font-size:0.82rem;">
+          <li><strong>전용 방치형 소셜 낚시터 오픈 (<code>fishing_room_1</code>)</strong>: 상단 맑은 호수·수변 데크 무대(터치 이동·스탠딩 캐릭터) + 하단 휘발성 실시간 채팅 &amp; 5초 fade-out 말풍선(최신 발화 최상단 z-index)</li>
+          <li><strong>매일 오전 06:00 초기화 6시간 방치 보상</strong>: 낚시터 체류·백그라운드 유지 시 360분 기준 최대 <code>경험치 +1,000</code> · <code>CD +3,000</code> 적립 (오전 06:00 정각 즉시 초기화, 낚싯대·미끼 배율 확장 구조 반영)</li>
+          <li><strong>입·퇴장 2초 전용 로딩 &amp; 낚시터 BGM</strong>: 흰 배경 바운스 캐릭터 2초 로딩 연출 및 <code>fish.mp3</code> 전용 사운드 지원</li>
+          <li><strong>모바일 키보드 화면 밀림 방지 &amp; 2×3 홈 버튼 개편</strong>: 키보드 활성화 시 상단 낚시터·채팅 로그 고정 및 입력창만 키보드 바로 위 부양, 메인 홈 <code>싱글·멀티·낚시터(초록) / 상점·랭킹·친구(흰색)</code> 2×3 배치 적용</li>
+        </ul>
+
+        <p style="font-weight:900; color:#7c3aed; margin-bottom:4px;">🎨 v10.19 계정 세션 격리 · 상단 닉네임 전체 표기 · 16:10 와이드 홈 배경</p>
+        <ul style="padding-left:18px; margin-bottom:12px; font-size:0.82rem;">
+          <li><strong>계정별 데이터 완벽 격리 & 상단 전체 아이디 표기</strong>: 로그아웃·신규 회원가입 시 이전 계정 외형/보유 아이템 초기화, 좌측 상단 아이디 5글자 제한 해제</li>
+          <li><strong>메인 홈 와이드 직사각형 배경</strong>: 기존 정사각형 스테이지를 <code>16:10</code> 가로 풀 와이드 직사각형으로 넓혀 배경 좌우 일러스트 전체가 한눈에 보이도록 개선 (캐릭터 정배율 유지)</li>
+          <li><strong>전 파츠 고해상도·고디테일 리뉴얼</strong>: 헤어 15종(쉼표·펌·샤기컷·양갈래 등), 의상(카라·단추·소매·신발), 배경 12종(상점 상단 스테이지·타일 동시 풀 일러스트) 전면 업그레이드</li>
+          <li><strong>신규 A~S급 코스튬 27종 출시</strong>: 구름·태양·별·파티·펑키·트리 모자, 상처·터프/산타 수염·잠자리안경·개구리눈·가면, 배관공·5살유치원·파자마·노란네모·방울고양이·드레스, 해변·골목·지하실·구름 배경, 해골·키보드·선풍기·스노우보드·X-Mas 선물</li>
+          <li><strong>얼굴 카테고리 정리 & 링크 썸네일</strong>: <code>표정 ➔ 얼굴</code> 명칭 변경, 중복 <code>열창 표정</code> 제거 및 <code>심쿵 윙크</code> 아이콘 수정, 메신저 공유 시 음악왕 OG 썸네일 카드 지원</li>
+        </ul>
+
+        <p style="font-weight:900; color:#2563eb; margin-bottom:4px;">🚀 v10.16 싱글·멀티 홈 분리 · 랜덤 플레이 · 스토어 정책/외부 탈퇴 완성</p>
+        <ul style="padding-left:18px; margin-bottom:12px; font-size:0.82rem;">
+          <li><strong>홈 싱글/멀티 직관 분리</strong>: 메인 하단 도전 버튼을 <code>🎯 싱글 플레이</code>·<code>⚔️ 멀티 플레이</code>로 분할하고, 멀티 선택 시 <code>1:1 / 4인</code> 대결 선택 모달 제공</li>
+          <li><strong>🎲 랜덤 플레이</strong>: 싱글 설정 화면 최상단에 모드·난이도 단계까지 완전 랜덤으로 10문제 즉시 시작하는 원클릭 버튼 추가</li>
+          <li><strong>개인정보처리방침 & 웹 외부 탈퇴 지원</strong>: 로그인 하단 작은 링크로 약관 열람 및 앱 미설치 환경에서도 본인 인증 후 즉시 계정 영구 삭제 지원</li>
+          <li><strong>앱 브랜딩 일원화</strong>: 앱 이름·타이틀·UI 표기를 모두 <code>음악왕</code>으로 깔끔하게 통일</li>
+        </ul>
+
+        <p style="font-weight:900; color:#dc2626; margin-bottom:4px;">🛡️ v10.15 편의성 · 랭킹 정비 · 스토어 안전 기능 고도화</p>
+        <ul style="padding-left:18px; margin-bottom:12px; font-size:0.82rem;">
+          <li><strong>랭킹 유저별 최고점 1개 정리</strong>: 전체 및 모드·단계별 랭킹에서 유저당 최고 기록 1개만 깔끔히 노출</li>
+          <li><strong>결과표 노래 미리듣기</strong>: 결과 화면 정오표 각 곡마다 <code>▶ 듣기 / ⏹ 정지</code> 버튼으로 앱 내 즉시 하이라이트 재생</li>
+          <li><strong>3단계 엔터 포커스 & 힌트 감점 표시</strong>: 가수+노래 입력 시 엔터로 제목 칸 즉시 이동, 힌트 버튼에 <code>(-15점 / -20점)</code> 표기</li>
+          <li><strong>UI·종료·안전 기능 강화</strong>: 홈 스피커 버튼 위치 상향 분리, 백그라운드 전환 시 BGM 즉시 정지 및 뒤로가기 종료 개선, <code>신고/차단</code>·<code>회원탈퇴(완전 삭제)</code> 탑재</li>
+        </ul>
+
+        <p style="font-weight:900; color:#7c3aed; margin-bottom:4px;">🎧 v10.14 1초 듣기 자동재생 & 클릭음 충돌 방지</p>
+        <ul style="padding-left:18px; margin-bottom:12px; font-size:0.82rem;">
+          <li><strong>1초 듣기 자동재생 지원</strong>: 싱글 플레이 및 온라인 대전 <code>1초 듣기</code> 라운드 진입 시 음원이 자동 재생되며, 기존 <code>▶ 1초 듣기</code>·<code>🔄 다른 구간</code> 다시 듣기도 그대로 사용 가능</li>
+          <li><strong>1초 듣기 전용 클릭음 분리</strong>: <code>1초 듣기</code> 진행 중에는 버튼 클릭 효과음(<code>click.wav</code>)을 끄고 음원 재생과 충돌 없이 깔끔하게 재생</li>
+          <li><strong>음원 출처 표기</strong>: 1초 듣기 하단에 Apple Music / iTunes 공식 미리듣기 출처 문구 표시</li>
+        </ul>
+
+        <p style="font-weight:900; color:#16a34a; margin-bottom:4px;">🧹 v10.13 하단 메뉴 버튼 크기 개선 & 관리자 UI 정리</p>
+        <ul style="padding-left:18px; margin-bottom:12px; font-size:0.82rem;">
+          <li><strong>하단 3단 버튼 상하 20% 확대</strong>: <code>상점·옷장</code>, <code>랭킹</code>, <code>친구·DM</code> 버튼 높이를 약 20% 키워 터치감 개선</li>
+          <li><strong>MD 문제 추가 백엔드 전담화</strong>: 메인 헤더/설정에서 MD 버튼을 숨기고 <code>admin.html</code> 관리자 백엔드 페이지 내부로 일원화</li>
+        </ul>
+
+        <p style="font-weight:900; color:#2563eb; margin-bottom:4px;">🎨 v10.12 메인 홈 밀착 배치 & 도전 버튼 확대</p>
+        <ul style="padding-left:18px; margin-bottom:12px; font-size:0.82rem;">
+          <li><strong>메인 홈 간격 밀착 정렬</strong>: 타이틀·캐릭터·경험치 바·하단 버튼 사이의 불필요한 여백을 줄여 중앙에 깔끔히 모아 배치</li>
+          <li><strong>도전 버튼 강조</strong>: <code>🚀 음악왕 도전</code> 버튼 높이를 약 30% 키워 시인성과 터치감 강화</li>
+        </ul>
+
+        <p style="font-weight:900; color:#2563eb; margin-bottom:4px;">🎨 v10.11 메인 홈 도크 · 모서리 버튼 리뉴얼</p>
+        <ul style="padding-left:18px; margin-bottom:12px; font-size:0.82rem;">
+          <li><strong>가로형 알약 도크 배치</strong>: <code>🚀 음악왕 도전</code> 대형 알약 버튼 아래 <code>상점·랭킹·친구</code> 3단 가로 버튼으로 깔끔하게 재구성</li>
+          <li><strong>모서리 버튼 대칭 정렬</strong>: <code>?</code>(좌상단)·<code>🔔</code>(우상단)·<code>🔊</code>(우하단) 버튼을 메인 카드 모서리 위치에 깔끔히 정렬</li>
+        </ul>
+
+        <p style="font-weight:900; color:#ea580c; margin-bottom:4px;">✨ v10.10 홈 슬림 레이아웃 & 관리자 MD 문제 추가</p>
+        <ul style="padding-left:18px; margin-bottom:12px; font-size:0.82rem;">
+          <li><strong>메인 홈 도크 슬림화 & 쿠팡 배너</strong>: 좌우 1:3 버튼 비율을 슬림하고 정돈된 크기로 다듬고, 하단 320×50 쿠팡 파트너스 배너 및 안내 문구 적용</li>
+          <li><strong>관리자 전용 MD 일괄 등록</strong>: <code>"관리자"</code> 계정 접속 시 우측 상단 <code>📂</code> 버튼 및 관리자 페이지에서 <code>.md</code> 양식 자동 마스킹·iTunes 음원 연동 일괄 추가 지원</li>
+          <li><strong>성별 변경권 10,000 CD 통일</strong>: 회원가입 안내 문구와 상점 실제 가격(10,000 CD) 일치</li>
+        </ul>
+
+        <p style="font-weight:900; color:var(--primary-dark); margin-bottom:4px;">👑 v10.9 메인 홈 1:3 도크 & 하단 배너 슬롯</p>
+        <ul style="padding-left:18px; margin-bottom:12px; font-size:0.82rem;">
+          <li><strong>메인 홈 화면 개편</strong>: 상단 레벨·타이틀 확대, 정사각형 캐릭터 스테이지, 1:3 도전/메뉴 도크 및 최하단 320×50 배너 광고 영역 추가</li>
+          <li><strong>상점 손그림 신규 아이템 17종</strong>: 반짝 민머리·만두머리·삐삐머리·프로펠러모자·왕리본·곰돌이모자·보석왕관·회오리 왕사탕·곰돌이 인형·스마트폰 및 신규 표정 5종 추가</li>
+        </ul>
+
+        <p style="font-weight:900; color:#0284c7; margin-bottom:4px;">⚡ v10.7 상점 구매 개선 & 온라인 대전 업그레이드</p>
+        <ul style="padding-left:18px; margin-bottom:12px; font-size:0.82rem;">
+          <li><strong>상점 선택 구매 & 고스트 스크롤</strong>: 입어본 미구매 아이템이 여러 개일 때 가격/총합 팝업에서 원하는 항목만 선택 구매 가능 (미구매 착용 저장 버그 수정)</li>
+          <li><strong>1:1 / 4인 대전 패스 & 전환 효과</strong>: 참여자 전원 패스 시 다음 문제 이동(카운트 배지 표시), 문제 전환 효과, 상대 정답 시 입력창 자동 비우기, 무제한 대기 안정화</li>
+          <li><strong>전적·승률 & 랭킹 TOP 20</strong>: 내 프로필과 친구 프로필 동일 전적 UI + 1:1/4인 대결 승률 표기, 이미 친구면 <code>DM 보내기</code> 버튼 전환, 랭킹 최대 20위</li>
+          <li><strong>뒤로가기 앱 종료</strong>: 메인 화면에서 물리 뒤로가기 시 종료 확인 후 BGM 정지 및 앱 종료</li>
+        </ul>
+
+        <p style="font-weight:900; color:#64748b; margin-bottom:4px;">🌟 v10.0 ~ v10.6 주요 기능</p>
+        <ul style="padding-left:18px; margin-bottom:4px; font-size:0.82rem;">
+          <li><strong>20단계 레벨·타이틀 & 경험치 바</strong>: 싱글/멀티 EXP 누적 및 랭킹 TOP 3 최초 달성 시 5배·3배·2배 보너스 + 폭죽 연출</li>
+          <li><strong>카카오톡 스타일 친구·1:1 DM</strong>: 실시간 1:1 채팅 및 전역 새 메시지 알림 배지</li>
+          <li><strong>오리지널 캐릭터 & 정밀 악기</strong>: 7개 카테고리 상점, 닉네임/성별 변경권, PWA/Android TWA 앱 지원</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== [모달 8] 환경 설정 ==================== -->
+  <div id="settingsModal" class="modal-backdrop hidden">
+    <div class="modal-content">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <h3 style="font-size:1rem;">⚙️ 게임 환경 설정</h3>
+        <button class="header-btn" onclick="closeModal('settingsModal')">닫기 ✕</button>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:10px;">
+        <div class="pixel-list-item" style="cursor:default;">
+          <span>🔊 음원 미리듣기 볼륨</span>
+          <input type="range" id="volumeSlider" min="0" max="1" step="0.05" value="0.85" style="width:130px;" />
+        </div>
+        <div class="pixel-list-item" onclick="toggleFontStyle()">
+          <span>🔤 게임 폰트 스타일</span>
+          <strong id="fontStyleStatus" style="color:var(--primary-dark);">기본 고딕 (기본)</strong>
+        </div>
+        <div class="pixel-list-item" onclick="toggleFullscreenMode()">
+          <span>📱 전체화면(주소창 숨김) 전환</span>
+          <strong style="color:var(--accent);">전환 ➔</strong>
+        </div>
+        <div class="pixel-list-item hidden" id="settingsAdminMenuBtn" onclick="location.href='admin.html'">
+          <span>🛠️ 관리자 백엔드 페이지 (음악/아이템/계정/신고)</span>
+          <strong style="color:#b45309;">이동 ➔</strong>
+        </div>
+        <div class="pixel-list-item" onclick="openBlockedUsersModal()">
+          <span>🚫 차단한 유저 목록 관리</span>
+          <strong style="color:var(--text-sub);">관리 ➔</strong>
+        </div>
+        <div class="pixel-list-item" onclick="openPrivacyPolicyModal()">
+          <span>🔒 개인정보처리방침</span>
+          <strong style="color:var(--text-sub);">보기 ➔</strong>
+        </div>
+        <div class="pixel-list-item" onclick="handleLogout()" style="border-color:#f43f5e; background:#fff1f2;">
+          <span style="color:var(--danger); font-weight:800;">🚪 계정 로그아웃</span>
+          <strong style="color:var(--danger);">로그아웃</strong>
+        </div>
+        <div class="pixel-list-item" onclick="handleDeleteAccount()" style="border-color:#e11d48; background:#fff1f2;">
+          <span style="color:#be123c; font-weight:800;">⚠️ 회원탈퇴 (계정 영구 삭제)</span>
+          <strong style="color:#be123c;">탈퇴</strong>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== [모달 8-B] 차단한 유저 목록 관리 ==================== -->
+  <div id="blockedUsersModal" class="modal-backdrop hidden">
+    <div class="modal-content">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <h3 style="font-size:1rem;">🚫 차단한 유저 목록</h3>
+        <button class="header-btn" onclick="closeModal('blockedUsersModal')">닫기 ✕</button>
+      </div>
+      <p style="font-size:0.78rem; color:var(--text-sub); margin-bottom:8px;">
+        차단된 유저의 친구 신청, 1:1 DM, 알림, 대기실/랭킹 노출이 숨겨집니다.
+      </p>
+      <div id="blockedUsersListBox" class="history-scroll-box" style="max-height:300px;"></div>
+    </div>
+  </div>
+
+  <!-- ==================== [모달 9] 멀티 방 만들기 (모드·연대·단계 선택) ==================== -->
+  <div id="createRoomModal" class="modal-backdrop hidden">
+    <div class="modal-content">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <h3 id="createRoomModalTitle" style="font-size:1.02rem;">⚔️ 대전 방 만들기</h3>
+        <button class="header-btn" onclick="closeModal('createRoomModal')">닫기 ✕</button>
+      </div>
+      <div style="display:flex; flex-direction:column; gap:10px; margin-bottom:14px;">
+        <div class="input-group">
+          <label>🏠 방 제목</label>
+          <input type="text" id="createRoomTitleInput" class="text-input" maxlength="24" placeholder="방 제목을 입력하세요..." />
+        </div>
+        <div>
+          <div class="section-label"><span>📅 출제 연대</span></div>
+          <div class="option-grid cols-3" id="roomDecadeOptions">
+            <div class="option-chip active" data-room-decade="ALL" onclick="selectRoomConfig('decade', 'ALL')"><span class="chip-title">전연대</span></div>
+            <div class="option-chip" data-room-decade="1990s" onclick="selectRoomConfig('decade', '1990s')"><span class="chip-title">1990s</span></div>
+            <div class="option-chip" data-room-decade="2000s" onclick="selectRoomConfig('decade', '2000s')"><span class="chip-title">2000s</span></div>
+            <div class="option-chip" data-room-decade="2010s" onclick="selectRoomConfig('decade', '2010s')"><span class="chip-title">2010s</span></div>
+            <div class="option-chip" data-room-decade="2020s" onclick="selectRoomConfig('decade', '2020s')"><span class="chip-title">2020s</span></div>
+          </div>
+        </div>
+        <div>
+          <div class="section-label"><span>🎵 게임 모드</span></div>
+          <div class="option-grid cols-3" id="roomModeOptions">
+            <div class="option-chip active" data-room-mode="behind" onclick="selectRoomConfig('mode', 'behind')">
+              <span class="chip-title">📖 비하인드</span>
+            </div>
+            <div class="option-chip" data-room-mode="lyrics" onclick="selectRoomConfig('mode', 'lyrics')">
+              <span class="chip-title">📝 가사</span>
+            </div>
+            <div class="option-chip" data-room-mode="onesec" onclick="selectRoomConfig('mode', 'onesec')">
+              <span class="chip-title">⚡ 1초듣기</span>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="section-label"><span>🔥 정답 단계</span></div>
+          <div class="option-grid cols-3" id="roomStageOptions">
+            <div class="option-chip active" data-room-stage="1" onclick="selectRoomConfig('stage', 1)">
+              <span class="chip-title">1단계</span>
+              <span class="chip-desc">노래 맞히기</span>
+            </div>
+            <div class="option-chip" data-room-stage="2" onclick="selectRoomConfig('stage', 2)">
+              <span class="chip-title">2단계</span>
+              <span class="chip-desc">가수 맞히기</span>
+            </div>
+            <div class="option-chip" data-room-stage="3" onclick="selectRoomConfig('stage', 3)">
+              <span class="chip-title">3단계</span>
+              <span class="chip-desc">가수+노래</span>
+            </div>
+          </div>
+        </div>
+        <div>
+          <div class="section-label"><span>🎒 아이템 사용 여부</span></div>
+          <div class="option-grid cols-2" id="roomItemModeOptions">
+            <div class="option-chip active" data-room-itemMode="notem" onclick="selectRoomConfig('itemMode', 'notem')">
+              <span class="chip-title">🚫 노템전</span>
+              <span class="chip-desc">순수 실력 대결</span>
+            </div>
+            <div class="option-chip" data-room-itemMode="item" onclick="selectRoomConfig('itemMode', 'item')">
+              <span class="chip-title">🎒 아이템전</span>
+              <span class="chip-desc">공용 3종 사용 가능</span>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div class="action-row">
+        <button class="btn" onclick="closeModal('createRoomModal')" style="flex:0.9;">취소</button>
+        <button class="btn btn-gold" onclick="confirmCreateOnlineRoom()" style="flex:1.6; padding:12px;">⚔️ 방 만들기 완료</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== [모달 10] 타이틀 · 1~20레벨 경험치 테이블 도감 ==================== -->
+  <div id="titlesModal" class="modal-backdrop hidden">
+    <div class="modal-content">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <h3 style="font-size:1rem;">📜 음악왕 20단계 타이틀 · 경험치 도감</h3>
+        <button class="header-btn" onclick="closeModal('titlesModal')">닫기 ✕</button>
+      </div>
+      <div id="titlesCurrentSummary" style="background:#fef9c3; border:2px solid var(--game-border); border-radius:12px; padding:8px 10px; font-size:0.82rem; font-weight:900; margin-bottom:8px; text-align:center;"></div>
+      <div id="titlesTableList" class="history-scroll-box" style="max-height:360px;"></div>
+    </div>
+  </div>
+
+  <!-- ==================== [모달 11] 게임 보상 · 경험치 애니메이션 · 랭킹 TOP3 폭죽 결과 바 ==================== -->
+  <div id="rewardSummaryModal" class="modal-backdrop hidden" style="z-index:2200;">
+    <div class="modal-content" style="text-align:center;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <h3 style="font-size:1.05rem;">🎁 게임 보상 정산</h3>
+        <button class="header-btn" onclick="closeRewardSummaryModal()">닫기 ✕</button>
+      </div>
+
+      <!-- 랭킹 3위 내 최초 진입 시에만 표시되는 TOP 3 배너 -->
+      <div id="rewardTop3Banner" class="hidden" style="background:linear-gradient(135deg, #fef08a, #f59e0b); border:2.5px solid #1e1b18; border-radius:14px; padding:10px; margin-bottom:10px; color:#1e1b18; font-weight:900;"></div>
+
+      <div class="score-rule-grid" style="margin-bottom:12px;">
+        <div class="score-rule-item"><span>💿 획득 CD</span><strong id="rewardCdGain" style="color:#b45309;">+0 CD</strong></div>
+        <div class="score-rule-item"><span>✨ 획득 EXP</span><strong id="rewardExpGain" class="score-plus">+0 EXP</strong></div>
+      </div>
+
+      <!-- 경험치 바 상승 & % 애니메이션 영역 -->
+      <div style="background:var(--bg-subtle); border:2px solid var(--game-border); border-radius:14px; padding:12px; margin-bottom:14px;">
+        <div id="rewardLevelTitle" style="font-size:0.98rem; font-weight:900; color:var(--primary-dark); margin-bottom:4px;">Lv.1 🐣 방구석 리스너</div>
+        <div id="rewardLevelUpTag" class="hidden" style="display:inline-block; background:#f43f5e; color:#fff; font-size:0.75rem; font-weight:900; padding:2px 10px; border-radius:999px; margin-bottom:5px;">🎉 LEVEL UP!</div>
+        <div class="exp-bar-top" style="margin-bottom:4px;">
+          <span id="rewardExpDetailText">0 / 1,000 EXP</span>
+          <span id="rewardPercentDeltaText" style="color:#16a34a;">0.0% (+0.0%)</span>
+        </div>
+        <div class="exp-progress-track" style="height:15px;">
+          <div id="rewardExpBarFill" class="exp-progress-fill" style="width:0%;"></div>
+        </div>
+      </div>
+
+      <button class="btn btn-primary btn-lg" onclick="closeRewardSummaryModal()" style="padding:12px;">
+        ✕ 닫기 (결과표 확인 · 공유하기)
+      </button>
+    </div>
+  </div>
+
+  <!-- ==================== [모달 12] 도착한 1:1 DM 미리보기 알림 모달 ==================== -->
+  <div id="dmNotiModal" class="modal-backdrop hidden">
+    <div class="modal-content">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <h3 style="font-size:1rem;">🔔 새로 도착한 1:1 메시지</h3>
+        <button class="header-btn" onclick="closeModal('dmNotiModal')">닫기 ✕</button>
+      </div>
+      <p style="font-size:0.78rem; color:var(--text-sub); margin-bottom:8px;">메시지를 누르면 해당 친구와의 카톡 1:1 대화방으로 바로 이동합니다!</p>
+      <div id="dmNotiPreviewList" class="history-scroll-box" style="max-height:300px; margin-bottom:10px;"></div>
+      <button class="btn" onclick="markAllDmNotiRead(); closeModal('dmNotiModal');" style="width:100%; font-size:0.82rem;">✓ 모두 읽음 처리</button>
+    </div>
+  </div>
+
+  <!-- ==================== [모달 13] 게임 방법 안내 모달 (?) ==================== -->
+  <div id="howToPlayModal" class="modal-backdrop hidden">
+    <div class="modal-content">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <h3 style="font-size:1rem;">❓ 음악왕 게임 방법</h3>
+        <button class="header-btn" onclick="closeModal('howToPlayModal')">닫기 ✕</button>
+      </div>
+      <div class="judge-note-box" style="max-height:380px; font-size:0.84rem; line-height:1.6;">
+        <p style="font-weight:900; color:var(--primary-dark); margin-bottom:4px;">🎯 1. 싱글 플레이 (기록 · EXP · CD 획득)</p>
+        <ul style="padding-left:18px; margin-bottom:10px;">
+          <li><strong>출제 연대</strong>: 1990년대 ~ 2020년대 원하는 시대를 선택하세요.</li>
+          <li><strong>문제 모드</strong>: <strong>📖 비하인드</strong>(사연), <strong>📝 가사</strong>(하이라이트), <strong>⚡ 1초 듣기</strong>(음원 1초)!</li>
+          <li><strong>난이도 단계</strong>: 1단계(노래) / 2단계(가수) / 3단계(가수+노래 모두, +20점 보너스)</li>
+          <li><strong>특수 옵션</strong>: ⏱️ 타임어택(15초 제한, 점수 ×2배) / 🔥 찐팬 하드모드</li>
+        </ul>
+
+        <p style="font-weight:900; color:#b45309; margin-bottom:4px;">⚔️ 2. 멀티 플레이 (실시간 대결)</p>
+        <ul style="padding-left:18px; margin-bottom:10px;">
+          <li>대기실에서 <strong>1:1 선착순</strong> 또는 <strong>4인 점수제</strong> 방을 만들며 연대·모드·단계를 고릅니다.</li>
+          <li>방 안에서 캐릭터를 터치해 이동하고 말풍선 채팅을 나눈 뒤, 방장이 스타트하면 전용 스튜디오에서 대결합니다!</li>
+        </ul>
+
+        <p style="font-weight:900; color:#0284c7; margin-bottom:4px;">🏆 3. 경험치 · 타이틀 · 랭킹 TOP3 보너스</p>
+        <ul style="padding-left:18px; margin-bottom:4px;">
+          <li>게임 종료 시 <strong>💿 CD 코인</strong>과 <strong>✨ 경험치(점수×0.1)</strong> 를 획득해 Lv.1~Lv.20 타이틀이 올라갑니다.</li>
+          <li>각 모드 랭킹 <strong>TOP 3 최초 달성/갱신 시 폭죽과 함께 경험치·CD ×5배(1위) / ×3배(2위) / ×2배(3위)</strong> 보너스!</li>
+        </ul>
+      </div>
+      <button class="btn btn-primary btn-lg" onclick="closeModal('howToPlayModal')" style="padding:11px;">확인 (닫기)</button>
+    </div>
+  </div>
+
+  <!-- ==================== [모달 14] 음악왕 개인정보처리방침 ==================== -->
+  <div id="privacyPolicyModal" class="modal-backdrop hidden">
+    <div class="modal-content">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <h3 style="font-size:1rem;">🔒 음악왕 개인정보처리방침</h3>
+        <button class="header-btn" onclick="closeModal('privacyPolicyModal')">닫기 ✕</button>
+      </div>
+      <div class="judge-note-box" style="max-height:360px; font-size:0.84rem; line-height:1.65;">
+        <p style="font-weight:900; color:var(--primary-dark); margin-bottom:8px;">[음악왕 개인정보처리방침]</p>
+        <ul style="padding-left:18px; margin-bottom:10px; display:flex; flex-direction:column; gap:6px;">
+          <li><strong>수집하는 개인정보 항목</strong>: 닉네임, 게임 플레이 기록, 유저 간 채팅 내역</li>
+          <li><strong>수집 및 이용 목적</strong>: 게임 랭킹 운영, 원활한 서비스 제공 및 불량 이용자 제재</li>
+          <li><strong>보유 및 이용 기간</strong>: 회원의 '계정 탈퇴' 시 즉시 파기합니다.</li>
+          <li><strong>제3자 제공</strong>: 유저의 동의 없이 외부 제3자에게 제공하지 않습니다.</li>
+        </ul>
+      </div>
+      <div class="action-row" style="margin-top:10px;">
+        <button type="button" class="btn" onclick="openExternalDeleteAccountModal()" style="flex:1; color:#be123c; background:#fff1f2; border-color:#f43f5e; font-size:0.78rem;">🗑️ 웹 계정 삭제 요청</button>
+        <button type="button" class="btn btn-primary" onclick="closeModal('privacyPolicyModal')" style="flex:1;">확인 (닫기)</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== [모달 15] 외부(웹) 계정 탈퇴/삭제 요청 ==================== -->
+  <div id="externalDeleteModal" class="modal-backdrop hidden">
+    <div class="modal-content" style="max-width:400px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <h3 style="font-size:1rem; color:#be123c;">🗑️ 계정 탈퇴 / 삭제 요청</h3>
+        <button class="header-btn" onclick="closeModal('externalDeleteModal')">닫기 ✕</button>
+      </div>
+      <p style="font-size:0.8rem; color:var(--text-sub); line-height:1.48; margin-bottom:10px;">
+        앱을 삭제하셨거나 로그인 전 상태에서도 가입하신 <strong>닉네임과 비밀번호</strong>로 본인 확인 후 즉시 모든 서버 기록(프로필·랭킹·친구·DM·로그인 계정)을 영구 삭제할 수 있습니다.
+      </p>
+      <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:12px;">
+        <div class="input-group">
+          <label for="extDeleteNickInput">👤 삭제할 계정 닉네임</label>
+          <input type="text" id="extDeleteNickInput" class="text-input" placeholder="가입한 닉네임 입력" autocomplete="off" />
+        </div>
+        <div class="input-group">
+          <label for="extDeletePwInput">🔑 비밀번호 (본인 확인)</label>
+          <input type="password" id="extDeletePwInput" class="text-input" placeholder="비밀번호 6자리 이상 입력" autocomplete="off" onkeydown="if(event.key==='Enter') submitExternalDeleteAccount()" />
+        </div>
+      </div>
+      <div class="action-row">
+        <button type="button" class="btn" onclick="closeModal('externalDeleteModal')" style="flex:0.85;">취소</button>
+        <button type="button" class="btn" onclick="submitExternalDeleteAccount()" style="flex:1.45; color:#ffffff; background:#e11d48; border-color:#1e1b18;">⚠️ 본인 확인 후 즉시 탈퇴</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 랭킹 3위 이내 달성 시 터지는 축하 폭죽 파티클 캔버스 -->
+  <canvas id="confettiCanvas" class="hidden"></canvas>
+
+  <!-- ==================== [V2.0 모달 A] 자체 책 광고 (15초 시청 보상) ==================== -->
+  <div id="selfAdModal" class="modal-backdrop hidden" style="z-index:2600;">
+    <div class="modal-content" style="max-width:370px; text-align:center;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <h3 style="font-size:0.98rem;">📺 스폰서 · 제작자 추천 도서</h3>
+        <button class="header-btn" onclick="closeSelfAdModal()">닫기 ✕</button>
+      </div>
+      <p id="selfAdRewardLabel" style="font-size:0.8rem; font-weight:800; color:var(--primary-dark); margin-bottom:8px;"></p>
+      <div style="border-radius:12px; overflow:hidden; border:2px solid var(--game-border); background:#f8fafc; margin-bottom:10px;">
+        <img id="selfAdImage" src="myad/ad1.png?v=20.0" alt="추천 도서 안내" style="width:100%; max-height:290px; object-fit:contain; display:block;" onerror="this.style.display='none'; document.getElementById('selfAdFallbackBox').classList.remove('hidden');" />
+        <div id="selfAdFallbackBox" class="hidden" style="padding:36px 16px; font-weight:800; color:var(--text-sub);">
+          📘 제작자 추천 도서 홍보 배너<br/>(myad/ad1.png)
+        </div>
+      </div>
+      <div class="exp-progress-track" style="height:10px; margin-bottom:6px;">
+        <div id="selfAdProgressFill" class="exp-progress-fill" style="width:0%;"></div>
+      </div>
+      <p id="selfAdCountdownText" style="font-size:0.8rem; font-weight:800; color:var(--text-main); margin-bottom:10px;"></p>
+      <button type="button" id="selfAdClaimBtn" class="btn btn-gold" style="width:100%; padding:11px;" disabled>⏳ 대기 중 (15s)</button>
+    </div>
+  </div>
+
+  <!-- ==================== [V2.0 모달 B] 오늘의 랜덤 선물상자 ==================== -->
+  <div id="randomBoxModal" class="modal-backdrop hidden" style="z-index:2250;">
+    <div class="modal-content" style="max-width:350px; text-align:center;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <h3 style="font-size:1rem;">🎁 오늘의 랜덤 선물상자</h3>
+        <button class="header-btn" onclick="closeModal('randomBoxModal')">닫기 ✕</button>
+      </div>
+      <div id="randomBoxVisual" class="random-box-stage" onclick="claimDailyRandomBox()">
+        <div class="random-box-glow"></div>
+        <div class="random-box-gift">
+          <div class="gift-ribbon-top">🎀</div>
+          <div class="gift-lid"></div>
+          <div class="gift-body">
+            <div class="gift-ribbon-v"></div>
+          </div>
+        </div>
+      </div>
+      <p id="randomBoxResultText" style="font-size:0.84rem; font-weight:800; color:var(--text-sub); margin:10px 0 12px; line-height:1.45;"></p>
+      <button type="button" id="openRandomBoxBtn" class="btn btn-gold" style="width:100%; padding:11px;" onclick="claimDailyRandomBox()">🎁 상자 열어보기!</button>
+    </div>
+  </div>
+
+  <!-- ==================== [V2.0 모달 C] 28일 출석체크 보드 ==================== -->
+  <div id="attendanceModal" class="modal-backdrop hidden" style="z-index:2250;">
+    <div class="modal-content" style="max-width:420px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <h3 style="font-size:1rem;">📅 28일 출석체크 보드</h3>
+        <button class="header-btn" onclick="closeModal('attendanceModal')">닫기 ✕</button>
+      </div>
+      <p style="font-size:0.76rem; color:var(--text-sub); margin-bottom:8px;">
+        매일 오전 6시 초기화 · <strong>14일차 ⚡더블어택</strong> · <strong>28일차 🧚요정날개(S+ 한정)</strong> 지급!
+      </p>
+      <div id="attendanceBoardGrid" class="attendance-grid"></div>
+      <button type="button" id="claimAttendanceBtn" class="btn btn-primary" style="width:100%; margin-top:10px; padding:11px;" onclick="claimAttendanceDay()">📅 출석 보상 받기!</button>
+    </div>
+  </div>
+
+  <!-- ==================== [V2.0 모달 D] 이벤트 현수막 팝업 (최대 5개 배너) ==================== -->
+  <div id="eventModal" class="modal-backdrop hidden" style="z-index:2250;">
+    <div class="modal-content" style="max-width:420px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <h3 style="font-size:1rem;">🎉 음악왕 이벤트</h3>
+        <button class="header-btn" onclick="closeModal('eventModal')">닫기 ✕</button>
+      </div>
+      <div id="eventBannersList" class="event-banners-list"></div>
+      <div class="event-detail-card">
+        <h4 id="eventDetailTitle" style="font-size:0.96rem; font-weight:900; color:var(--primary-dark); margin-bottom:6px;"></h4>
+        <p id="eventDetailBody" style="font-size:0.82rem; color:var(--text-main); line-height:1.55; word-break:keep-all;"></p>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== [커스텀 시스템 팝업 모달] ==================== -->
+  <div id="customDialogModal" class="modal-backdrop hidden" style="z-index:2500;">
+    <div class="modal-content" style="max-width:360px; text-align:center; padding:18px;">
+      <h3 id="dialogTitle" style="font-size:1.02rem; font-weight:900; color:var(--primary-dark); margin-bottom:8px;">👑 음악왕 알림</h3>
+      <p id="dialogMessage" style="font-size:0.88rem; color:var(--text-main); line-height:1.55; margin-bottom:14px; word-break:keep-all;"></p>
+      <div id="dialogInputWrap" class="hidden" style="margin-bottom:12px;">
+        <input type="text" id="dialogPromptInput" class="text-input" autocomplete="off" />
+      </div>
+      <div class="action-row">
+        <button class="btn hidden" id="dialogCancelBtn" style="flex:1;">취소</button>
+        <button class="btn btn-primary" id="dialogConfirmBtn" style="flex:1.4;">확인</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- 📱 아이폰(iOS) + 갤럭시(안드로이드) 통합 앱 설치 배너 -->
+  <div id="smart-pwa-banner" style="display: none; position: fixed; bottom: calc(18px + env(safe-area-inset-bottom)); left: 50%; transform: translateX(-50%); width: 90%; max-width: 380px; background: rgba(25, 25, 35, 0.96); color: #ffffff; padding: 14px 16px; border-radius: 16px; box-shadow: 0 10px 25px rgba(0,0,0,0.48); z-index: 99999; font-family: var(--font-main); border: 2px solid #38bdf8; backdrop-filter: blur(8px);">
+    <div style="display: flex; justify-content: space-between; align-items: flex-start; gap: 10px;">
+      <!-- 1. 아이폰(iOS) 유저 안내 -->
+      <div id="pwa-ios-content" style="display: none; font-size: 13px; line-height: 1.5; word-break: keep-all;">
+        <div style="font-weight: 900; font-size: 14.5px; margin-bottom: 5px; color: #facc15;">
+          🍎 아이폰 앱으로 설치하기
+        </div>
+        하단의 <b>[공유 📤]</b> 버튼을 누른 뒤 <b>[홈 화면에 추가 ➕]</b>를 선택하면 전체화면 앱으로 즐길 수 있어요!
+      </div>
+
+      <!-- 2. 갤럭시(안드로이드) 유저 즉시 설치 버튼 -->
+      <div id="pwa-android-content" style="display: none; width: 100%; font-size: 13px; line-height: 1.5; word-break: keep-all;">
+        <div style="font-weight: 900; font-size: 14.5px; margin-bottom: 4px; color: #4ade80;">
+          🤖 갤럭시 전용 앱으로 실행하기
+        </div>
+        <div style="margin-bottom: 10px; color: #e2e8f0;">
+          스토어 이동 없이 3초 만에 전체화면 앱으로 설치하세요!
+        </div>
+        <button type="button" id="pwa-install-btn" style="width: 100%; background: #4ade80; color: #0f172a; font-weight: 900; border: 2px solid #0f172a; padding: 10px; border-radius: 10px; font-size: 14px; cursor: pointer;">
+          ⚡ 지금 앱 바로 설치하기
+        </button>
+      </div>
+
+      <!-- 닫기(X) 버튼 -->
+      <button type="button" id="pwa-banner-close" style="background: none; border: none; color: #cbd5e1; font-size: 22px; font-weight: 900; line-height: 1; cursor: pointer; padding: 0 4px;">&times;</button>
+    </div>
+    <!-- 아이폰용 하단 공유 버튼 지시 꼬리 -->
+    <div id="pwa-ios-arrow" style="display: none; position: absolute; bottom: -8px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 8px solid transparent; border-right: 8px solid transparent; border-top: 8px solid #38bdf8;"></div>
+  </div>
+
+  <script defer src="data.js?v=20.0"></script>
+  <script defer src="pixel_avatar.js?v=20.0"></script>
+  <script defer src="online.js?v=20.0"></script>
+  <script defer src="fishing.js?v=20.0"></script>
+  <script defer src="app.js?v=20.0"></script>
+  <script type="module">
+    const banner = document.getElementById("smart-pwa-banner");
+    const iosContent = document.getElementById("pwa-ios-content");
+    const iosArrow = document.getElementById("pwa-ios-arrow");
+    const androidContent = document.getElementById("pwa-android-content");
+    const installBtn = document.getElementById("pwa-install-btn");
+    const closeBtn = document.getElementById("pwa-banner-close");
+
+    const isStandalone =
+      window.navigator.standalone === true ||
+      window.matchMedia("(display-mode: standalone)").matches ||
+      window.matchMedia("(display-mode: fullscreen)").matches ||
+      document.referrer.indexOf("android-app://") !== -1;
+
+    const isEmbedded = window.self !== window.top || Boolean(window.onestoreCtx);
+    const dismissedTime = localStorage.getItem("musicking_pwa_hide");
+    const isDismissed = dismissedTime && (Date.now() - parseInt(dismissedTime, 10)) < 24 * 60 * 60 * 1000;
+
+    if (!isStandalone && !isEmbedded && !isDismissed) {
+      const isIOS =
+        /iPad|iPhone|iPod/.test(navigator.userAgent) ||
+        (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+      const isAndroid = /Android/i.test(navigator.userAgent);
+
+      if (isIOS && banner && iosContent) {
+        banner.style.display = "block";
+        iosContent.style.display = "block";
+        if (iosArrow) iosArrow.style.display = "block";
+      }
+
+      let deferredPrompt = null;
+      window.addEventListener("beforeinstallprompt", function (e) {
+        e.preventDefault();
+        deferredPrompt = e;
+        if (isAndroid && banner && androidContent) {
+          banner.style.display = "block";
+          androidContent.style.display = "block";
+        }
+      });
+
+      window.addEventListener("appinstalled", function () {
+        if (banner) banner.style.display = "none";
+        deferredPrompt = null;
+      });
+
+      if (installBtn) {
+        installBtn.addEventListener("click", function () {
+          if (deferredPrompt) {
+            deferredPrompt.prompt();
+            deferredPrompt.userChoice.then(function (choiceResult) {
+              if (choiceResult && choiceResult.outcome === "accepted" && banner) {
+                banner.style.display = "none";
+              }
+              deferredPrompt = null;
+            }).catch(function () {});
+          }
+        });
+      }
+
+      if (closeBtn) {
+        closeBtn.addEventListener("click", function () {
+          if (banner) banner.style.display = "none";
+          localStorage.setItem("musicking_pwa_hide", Date.now().toString());
+        });
+      }
+    }
+  </script>
+</body>
+</html>

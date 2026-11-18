@@ -1,0 +1,1310 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no" />
+  <title>음악왕 - 관리자 백엔드 대시보드</title>
+  <style>
+    .hidden, [hidden] { display: none !important; }
+  </style>
+  <link rel="stylesheet" href="style.css?v=20.0" />
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <style>
+    html, body {
+      overflow-y: auto;
+      height: auto;
+      min-height: 100dvh;
+    }
+    .admin-container {
+      max-width: 980px;
+      margin: 0 auto;
+      padding: 16px;
+    }
+    .admin-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.84rem;
+      background: #ffffff;
+    }
+    .admin-table th, .admin-table td {
+      padding: 9px 10px;
+      border-bottom: 1px solid var(--border-color);
+      text-align: left;
+    }
+    .admin-table th {
+      background: var(--primary-light);
+      color: var(--primary);
+      font-weight: 900;
+      position: sticky;
+      top: 0;
+    }
+    .admin-table tr:hover {
+      background: #f1f5f9;
+      cursor: pointer;
+    }
+    .table-scroll {
+      max-height: 62dvh;
+      overflow-y: auto;
+      border: 2px solid var(--pixel-border);
+      border-radius: 12px;
+      background: #ffffff;
+    }
+    .admin-tabs-grid {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 6px;
+      margin-bottom: 14px;
+    }
+    @media (max-width: 720px) {
+      .admin-tabs-grid {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+    }
+    .store-info-grid {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+    .store-info-card {
+      background: #f8fafc;
+      border: 2px solid var(--game-border);
+      border-radius: 14px;
+      padding: 12px 14px;
+    }
+    .store-info-card h4 {
+      font-size: 0.92rem;
+      font-weight: 900;
+      color: var(--primary-dark);
+      margin-bottom: 8px;
+    }
+    .store-copy-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+      background: #ffffff;
+      border: 1.5px solid #cbd5e1;
+      border-radius: 10px;
+      padding: 7px 10px;
+      margin-bottom: 6px;
+      flex-wrap: wrap;
+    }
+    .store-copy-meta {
+      flex: 1;
+      min-width: 210px;
+    }
+    .store-copy-label {
+      font-size: 0.72rem;
+      font-weight: 900;
+      color: #475569;
+    }
+    .store-copy-val {
+      font-family: monospace;
+      font-size: 0.78rem;
+      font-weight: 700;
+      color: #0f172a;
+      word-break: break-all;
+    }
+  </style>
+</head>
+<body>
+  <div id="adminContainer" class="admin-container hidden">
+    <!-- 상단 바 -->
+    <header class="top-header" style="margin-bottom:14px;">
+      <div class="brand" onclick="location.href='index.html'">
+        <span style="font-size:1.3rem;">🛠️</span>
+        <span class="brand-title">음악왕 관리자 백엔드 센터 (Supabase 연동)</span>
+      </div>
+      <div class="header-right">
+        <button class="btn btn-primary" onclick="location.href='index.html'" style="padding:6px 12px; font-size:0.8rem;">
+          🎮 게임 화면으로 돌아가기
+        </button>
+      </div>
+    </header>
+
+    <!-- 탭 메뉴 -->
+    <div class="admin-tabs-grid">
+      <div class="option-chip active" id="tabBtnSongs" onclick="switchAdminTab('songs')">
+        <span class="chip-title">🎵 음악 리스트 관리</span>
+      </div>
+      <div class="option-chip" id="tabBtnItems" onclick="switchAdminTab('items')">
+        <span class="chip-title">👗 상점 아이템 관리</span>
+      </div>
+      <div class="option-chip" id="tabBtnUsers" onclick="switchAdminTab('users')">
+        <span class="chip-title">👥 계정/초기화 관리</span>
+      </div>
+      <div class="option-chip" id="tabBtnReports" onclick="switchAdminTab('reports')">
+        <span class="chip-title">🚨 신고 내역 조회</span>
+      </div>
+      <div class="option-chip" id="tabBtnEvents" onclick="switchAdminTab('events')">
+        <span class="chip-title">🎉 이벤트 관리</span>
+      </div>
+      <div class="option-chip" id="tabBtnStore" onclick="switchAdminTab('store')">
+        <span class="chip-title">📦 스토어 출시 정보</span>
+      </div>
+    </div>
+
+    <!-- ==================== 탭 1: 음악 리스트 관리 ==================== -->
+    <section id="adminSongsSection" class="card">
+      <div style="display:flex; flex-wrap:wrap; justify-content:space-between; align-items:center; gap:8px; margin-bottom:10px;">
+        <div>
+          <h3 style="font-size:1rem;">🎵 전체 음악 문제 리스트 (<span id="adminSongTotalCount">0</span>곡)</h3>
+          <p style="font-size:0.78rem; color:var(--text-sub);">💡 항목을 <strong>더블클릭</strong>(또는 우측 [수정] 클릭)하면 내용·정답·힌트를 즉시 수정하고 수파베이스에 저장합니다.</p>
+        </div>
+        <div style="display:flex; gap:6px; flex-wrap:wrap;">
+          <button class="btn" onclick="exportQuestionsJson()" title="하이브리드 방식3 원격 배포용 JSON 내려받기">📥 questions.json 내보내기</button>
+          <button class="btn btn-primary" onclick="openMdImportModal()">📂 MD 파일 일괄 추가</button>
+          <button class="btn btn-gold" onclick="openSongEditModal(null)">➕ 1곡 직접 추가</button>
+        </div>
+      </div>
+
+      <div class="action-row" style="margin-bottom:10px;">
+        <select id="adminDecadeFilter" class="text-input" style="max-width:150px;" onchange="renderAdminSongsTable()">
+          <option value="ALL">전체 연대</option>
+          <option value="1990s">1990년대</option>
+          <option value="2000s">2000년대</option>
+          <option value="2010s">2010년대</option>
+          <option value="2020s">2020년대</option>
+        </select>
+        <input type="text" id="adminSongSearch" class="text-input" placeholder="가수명, 노래 제목, 비하인드 키워드 검색..." oninput="renderAdminSongsTable()" />
+      </div>
+
+      <div class="table-scroll">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th style="width:70px;">연도</th>
+              <th style="width:150px;">가수 (동의어)</th>
+              <th style="width:180px;">노래 제목</th>
+              <th>비하인드 문제 지문</th>
+              <th style="width:80px;">관리</th>
+            </tr>
+          </thead>
+          <tbody id="adminSongsTbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ==================== 탭 2: 상점 아이템 관리 ==================== -->
+    <section id="adminItemsSection" class="card hidden">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <div>
+          <h3 style="font-size:1rem;">👗 상점 아이템 추가 / 수정 / 가격(CD) 설정</h3>
+          <p style="font-size:0.78rem; color:var(--text-sub);">가격이나 이름을 변경하고 [☁️ 서버 저장]을 누르면 모든 유저의 상점에 즉시 반영됩니다.</p>
+        </div>
+        <button class="btn btn-gold" onclick="openAddItemModal()">➕ 새 아이템 추가</button>
+      </div>
+
+      <div class="option-grid cols-4" style="margin-bottom:10px;">
+        <div class="option-chip active" data-admin-cat="hair" onclick="selectAdminItemCat('hair')"><span class="chip-title">💇 헤어</span></div>
+        <div class="option-chip" data-admin-cat="hat" onclick="selectAdminItemCat('hat')"><span class="chip-title">🎧 모자</span></div>
+        <div class="option-chip" data-admin-cat="face" onclick="selectAdminItemCat('face')"><span class="chip-title">😎 얼굴</span></div>
+        <div class="option-chip" data-admin-cat="outfit" onclick="selectAdminItemCat('outfit')"><span class="chip-title">👕 의상</span></div>
+        <div class="option-chip" data-admin-cat="acc" onclick="selectAdminItemCat('acc')"><span class="chip-title">🎸 악기</span></div>
+        <div class="option-chip" data-admin-cat="bg" onclick="selectAdminItemCat('bg')"><span class="chip-title">🏞️ 배경</span></div>
+        <div class="option-chip" data-admin-cat="fishing_rod" onclick="selectAdminItemCat('fishing_rod')"><span class="chip-title">🎣 낚싯대</span></div>
+        <div class="option-chip" data-admin-cat="fishing_bait" onclick="selectAdminItemCat('fishing_bait')"><span class="chip-title">🪱 미끼</span></div>
+        <div class="option-chip" data-admin-cat="special" onclick="selectAdminItemCat('special')" style="grid-column:span 4;"><span class="chip-title">🎫 스페셜(닉변권/성별변경)</span></div>
+      </div>
+
+      <div class="table-scroll">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>아이템 ID</th>
+              <th>아이템 이름</th>
+              <th style="width:130px;">가격 (CD)</th>
+              <th style="width:120px;">메인 색상</th>
+              <th style="width:140px;">저장 / 삭제</th>
+            </tr>
+          </thead>
+          <tbody id="adminItemsTbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ==================== 탭 3: 계정 정보 및 초기화 관리 ==================== -->
+    <section id="adminUsersSection" class="card hidden">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <div>
+          <h3 style="font-size:1rem;">👥 전체 유저 계정 정보 및 초기화 관리</h3>
+          <p style="font-size:0.78rem; color:var(--text-sub);">유저의 보유 CD를 조정하거나 계정/비밀번호 재가입 초기화를 진행할 수 있습니다.</p>
+        </div>
+        <button class="btn btn-primary" onclick="loadAdminUsers()">🔄 목록 새로고침</button>
+      </div>
+
+      <div class="table-scroll">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th>닉네임</th>
+              <th>성별</th>
+              <th>한줄 소개</th>
+              <th>보유 CD</th>
+              <th>최근 접속일</th>
+              <th style="width:220px;">계정 관리</th>
+            </tr>
+          </thead>
+          <tbody id="adminUsersTbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ==================== 탭 4: 신고 내역 조회 (user_reports) ==================== -->
+    <section id="adminReportsSection" class="card hidden">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; gap:8px; flex-wrap:wrap;">
+        <div>
+          <h3 style="font-size:1rem;">🚨 유저 신고 내역 (<span id="adminReportsTotalCount">0</span>건)</h3>
+          <p style="font-size:0.78rem; color:var(--text-sub);">유저가 [🚨 신고/차단]으로 접수한 내역입니다. 필요 시 [계정 관리] 탭에서 조치할 수 있습니다.</p>
+        </div>
+        <button class="btn btn-primary" onclick="loadAdminReports()">🔄 새로고침</button>
+      </div>
+
+      <div class="table-scroll">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th style="width:140px;">신고 일시</th>
+              <th style="width:120px;">신고자</th>
+              <th style="width:130px;">대상 유저</th>
+              <th>신고 사유</th>
+            </tr>
+          </thead>
+          <tbody id="adminReportsTbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ==================== 탭 4-B: 이벤트 관리 (V2.0) ==================== -->
+    <section id="adminEventsSection" class="card hidden">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px; gap:8px; flex-wrap:wrap;">
+        <div>
+          <h3 style="font-size:1rem;">🎉 홈 이벤트 배너 · 내용 관리 (최대 5개 게시 권장)</h3>
+          <p style="font-size:0.78rem; color:var(--text-sub);">배너 이미지는 Supabase Storage(<code>event-banners</code>)에 저장되며, 게시/미게시 토글로 즉시 노출 제어됩니다.</p>
+        </div>
+        <button class="btn btn-primary" onclick="loadAdminEvents()">🔄 새로고침</button>
+      </div>
+
+      <div style="background:var(--bg-subtle); border:2px solid var(--game-border); border-radius:12px; padding:12px; margin-bottom:12px;">
+        <input type="hidden" id="adminEventEditId" />
+        <div style="display:grid; grid-template-columns:1fr auto; gap:8px; margin-bottom:8px; align-items:center;">
+          <input type="text" id="adminEventTitleInput" class="text-input" placeholder="이벤트 배너 제목 (예: 신고하고 보상받자!)" />
+          <label style="display:flex; align-items:center; gap:5px; font-size:0.8rem; font-weight:900; cursor:pointer;">
+            <input type="checkbox" id="adminEventPublishedInput" checked />
+            <span>즉시 게시</span>
+          </label>
+        </div>
+        <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap; margin-bottom:8px;">
+          <label class="btn" style="padding:6px 10px; font-size:0.78rem; cursor:pointer;">
+            🖼️ 배너 이미지 선택
+            <input type="file" id="adminEventBannerFile" accept="image/*" style="display:none;" onchange="uploadAdminEventBannerImage(event)" />
+          </label>
+          <input type="text" id="adminEventBannerUrlInput" class="text-input" placeholder="배너 이미지 URL (업로드 시 자동 입력)" style="flex:1; min-width:180px; font-size:0.78rem;" />
+        </div>
+        <textarea id="adminEventContentInput" class="text-input" rows="3" placeholder="이벤트 상세 내용을 입력하세요..." style="margin-bottom:8px;"></textarea>
+        <div class="action-row">
+          <button type="button" class="btn" onclick="resetAdminEventForm()" style="flex:0.6;">초기화</button>
+          <button type="button" class="btn btn-gold" onclick="saveAdminEvent()" style="flex:1.5;">💾 이벤트 저장 / 등록</button>
+        </div>
+      </div>
+
+      <div class="table-scroll">
+        <table class="admin-table">
+          <thead>
+            <tr>
+              <th style="width:60px;">ID</th>
+              <th style="width:90px;">상태</th>
+              <th style="width:180px;">제목</th>
+              <th>내용</th>
+              <th style="width:170px;">관리</th>
+            </tr>
+          </thead>
+          <tbody id="adminEventsTbody"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <!-- ==================== 탭 5: 스토어 심사·출시 필수 제출 정보 ==================== -->
+    <section id="adminStoreSection" class="card hidden">
+      <div style="margin-bottom:12px;">
+        <h3 style="font-size:1rem;">📦 Google Play / App Store · PWABuilder 스토어 제출 정보</h3>
+        <p style="font-size:0.78rem; color:var(--text-sub);">콘솔 심사 제출 시 아래 URL·식별값·데이터 보안 문구를 [📋 복사] 버튼으로 바로 복사해 사용하세요.</p>
+      </div>
+
+      <div class="store-info-grid">
+        <div class="store-info-card">
+          <h4>1️⃣ 스토어 제출 및 PC 관리 필수 URL</h4>
+
+          <div class="store-copy-row">
+            <div class="store-copy-meta">
+              <div class="store-copy-label">🌐 앱 메인(웹/TWA 시작) URL</div>
+              <div class="store-copy-val" id="storeUrlMain">https://dg1682-commits.github.io/MUSICKING/</div>
+            </div>
+            <button type="button" class="btn btn-primary" style="padding:5px 10px; font-size:0.74rem;" onclick="copyStoreText('storeUrlMain', '앱 메인 URL')">📋 복사</button>
+          </div>
+
+          <div class="store-copy-row">
+            <div class="store-copy-meta">
+              <div class="store-copy-label">🔒 개인정보처리방침 URL (Play Console / App Store 필수)</div>
+              <div class="store-copy-val" id="storeUrlPrivacy">https://dg1682-commits.github.io/MUSICKING/?page=privacy</div>
+            </div>
+            <button type="button" class="btn btn-primary" style="padding:5px 10px; font-size:0.74rem;" onclick="copyStoreText('storeUrlPrivacy', '개인정보처리방침 URL')">📋 복사</button>
+          </div>
+
+          <div class="store-copy-row">
+            <div class="store-copy-meta">
+              <div class="store-copy-label">🗑️ 웹 계정 삭제 요청 URL (Google Play 데이터 보안 필수)</div>
+              <div class="store-copy-val" id="storeUrlDelete">https://dg1682-commits.github.io/MUSICKING/?page=delete</div>
+            </div>
+            <button type="button" class="btn btn-primary" style="padding:5px 10px; font-size:0.74rem;" onclick="copyStoreText('storeUrlDelete', '계정 삭제 URL')">📋 복사</button>
+          </div>
+
+          <div class="store-copy-row">
+            <div class="store-copy-meta">
+              <div class="store-copy-label">🛠️ PC용 관리자 백엔드 URL (먼저 메인에서 '관리자' 로그인 필요)</div>
+              <div class="store-copy-val" id="storeUrlAdmin">https://dg1682-commits.github.io/MUSICKING/admin.html</div>
+            </div>
+            <button type="button" class="btn btn-primary" style="padding:5px 10px; font-size:0.74rem;" onclick="copyStoreText('storeUrlAdmin', '관리자 페이지 URL')">📋 복사</button>
+          </div>
+
+          <div class="store-copy-row">
+            <div class="store-copy-meta">
+              <div class="store-copy-label">🔗 Android Digital Asset Links 확인 URL</div>
+              <div class="store-copy-val" id="storeUrlAssetLinks">https://dg1682-commits.github.io/MUSICKING/.well-known/assetlinks.json</div>
+            </div>
+            <button type="button" class="btn" style="padding:5px 10px; font-size:0.74rem;" onclick="copyStoreText('storeUrlAssetLinks', 'Asset Links URL')">📋 복사</button>
+          </div>
+        </div>
+
+        <div class="store-info-card">
+          <h4>2️⃣ Android / TWA 패키징 · 서명 식별 정보</h4>
+          <div class="store-copy-row">
+            <div class="store-copy-meta">
+              <div class="store-copy-label">📱 앱 이름 / 매니페스트 표기 (`manifest.json`)</div>
+              <div class="store-copy-val" id="storeAppName">음악왕 (버전 v10.16)</div>
+            </div>
+            <button type="button" class="btn" style="padding:5px 10px; font-size:0.74rem;" onclick="copyStoreText('storeAppName', '앱 이름')">📋 복사</button>
+          </div>
+          <div class="store-copy-row">
+            <div class="store-copy-meta">
+              <div class="store-copy-label">📦 Android 패키지명 (Package ID)</div>
+              <div class="store-copy-val" id="storePkgName">io.github.dg1682_commits.twa</div>
+            </div>
+            <button type="button" class="btn btn-primary" style="padding:5px 10px; font-size:0.74rem;" onclick="copyStoreText('storePkgName', '패키지명')">📋 복사</button>
+          </div>
+          <div class="store-copy-row">
+            <div class="store-copy-meta">
+              <div class="store-copy-label">🔐 APK 서명 SHA-256 지문 (`assetlinks.json` 등록됨)</div>
+              <div class="store-copy-val" id="storeSha256">9C:BB:08:16:F2:E7:CC:3F:37:64:47:13:50:4A:8E:F4:44:CA:C2:BB:94:94:E0:D7:C5:DF:7C:01:CC:6C:30:27</div>
+            </div>
+            <button type="button" class="btn btn-primary" style="padding:5px 10px; font-size:0.74rem;" onclick="copyStoreText('storeSha256', 'SHA-256 지문')">📋 복사</button>
+          </div>
+        </div>
+
+        <div class="store-info-card">
+          <h4>3️⃣ 스토어 데이터 보안 · UGC 정책 · 외부 API 심사 체크리스트</h4>
+          <ul style="padding-left:18px; font-size:0.8rem; line-height:1.65; color:var(--text-main);">
+            <li><strong>수집 데이터 항목 (개인정보처리방침)</strong>: 닉네임, 게임 플레이 기록(점수·랭킹), 유저 간 채팅 내역 (전송 구간 HTTPS 암호화 / 제3자 미제공)</li>
+            <li><strong>계정·데이터 삭제 경로</strong>: 인게임 <code>[내 프로필 ➔ ⚠️ 회원탈퇴]</code>, <code>[⚙️ 설정 ➔ ⚠️ 회원탈퇴]</code> 및 웹 외부 URL(<code>?page=delete</code>)에서 본인 확인 후 즉시 파기(<code>delete_my_account</code> RPC)</li>
+            <li><strong>유저 생성 콘텐츠(UGC) 안전 장치</strong>: 타 유저 프로필 및 1:1 DM 채팅방 <code>[🚨 신고/차단]</code> ➔ <code>user_reports</code> 서버 저장 + 차단 목록 즉시 숨김·해제 제공</li>
+            <li><strong>음원 출처 & 제휴 광고 고지</strong>: 1초 듣기 플레이어 하단 <code>Audio preview provided courtesy of iTunes · Apple Music</code> 표기 / 홈 하단 쿠팡 파트너스(ID <code>1051148</code>) 대가성 안내문 표기</li>
+            <li><strong>심사관 테스트 계정 팁</strong>: Google Play / Apple 심사 제출 시 일반 테스트 계정(닉네임·비밀번호)을 1개 미리 가입해 두고 심사 메모에 적어 제출하세요. <em>(개발/운영용 <code>"관리자"</code> 계정 비번은 제출 금지)</em></li>
+          </ul>
+          <div style="margin-top:8px;">
+            <button type="button" class="btn btn-gold" onclick="copyPrivacyPolicyTemplate()" style="font-size:0.78rem; padding:6px 12px;">📋 개인정보처리방침 전문 복사</button>
+          </div>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <!-- ==================== [모달] 음악 문제 상세 수정/추가 ==================== -->
+  <div id="songEditModal" class="modal-backdrop hidden">
+    <div class="modal-content" style="max-width:560px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:10px;">
+        <h3 id="songModalTitle" style="font-size:1rem;">🎵 음악 문제 수정</h3>
+        <button class="header-btn" onclick="document.getElementById('songEditModal').classList.add('hidden')">닫기 ✕</button>
+      </div>
+      <input type="hidden" id="editSongId" />
+      <div style="display:flex; flex-direction:column; gap:8px; margin-bottom:12px;">
+        <div class="input-row">
+          <div class="input-group">
+            <label>🎤 가수 이름 (정답)</label>
+            <input type="text" id="editSongArtist" class="text-input" />
+          </div>
+          <div class="input-group">
+            <label>🎵 노래 제목 (정답)</label>
+            <input type="text" id="editSongTitle" class="text-input" />
+          </div>
+        </div>
+        <div class="input-row">
+          <div class="input-group">
+            <label>👥 가수 복수정답 동의어 (쉼표 구분)</label>
+            <input type="text" id="editSongArtistAliases" class="text-input" placeholder="예: 하현우, Guckkasten" />
+          </div>
+          <div class="input-group">
+            <label>🎶 노래 복수정답 동의어 (쉼표 구분)</label>
+            <input type="text" id="editSongTitleAliases" class="text-input" placeholder="예: 러브다이브, Love Dive" />
+          </div>
+        </div>
+        <div class="input-row">
+          <div class="input-group">
+            <label>📅 발매 연도 (예: 2005)</label>
+            <input type="number" id="editSongYear" class="text-input" />
+          </div>
+          <div class="input-group">
+            <label>🔥 하드모드 포함 여부</label>
+            <select id="editSongHardMode" class="text-input">
+              <option value="true">포함 (ON)</option>
+              <option value="false">미포함 (OFF)</option>
+            </select>
+          </div>
+        </div>
+        <div class="input-group">
+          <label>🔑 포인트 단어 힌트</label>
+          <input type="text" id="editSongKeyword" class="text-input" />
+        </div>
+        <div class="input-group">
+          <label>📝 하이라이트 가사 문제</label>
+          <textarea id="editSongLyrics" class="text-input" rows="2"></textarea>
+        </div>
+        <div class="input-group">
+          <label>📖 비하인드 스토리 문제 지문</label>
+          <textarea id="editSongBehind" class="text-input" rows="4"></textarea>
+        </div>
+        <div class="input-group">
+          <label>💡 정답 공개 시 해설 노트</label>
+          <textarea id="editSongNote" class="text-input" rows="2"></textarea>
+        </div>
+      </div>
+      <div class="action-row">
+        <button class="btn btn-primary" onclick="saveSongFromModal()" style="flex:2;">☁️ 수파베이스 서버에 저장</button>
+        <button class="btn" onclick="deleteSongFromModal()" style="flex:1; color:var(--danger);">🗑️ 삭제</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== [모달 2] MD 문제 일괄 추가 (문제추가_양식.md 파서 · 마스킹 · 음원 테스트) ==================== -->
+  <div id="mdImportModal" class="modal-backdrop hidden" style="z-index:2350;">
+    <div class="modal-content" style="max-width:540px;">
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
+        <h3 style="font-size:1rem;">📂 MD 문제 일괄 추가</h3>
+        <button type="button" class="header-btn" onclick="closeMdImportModal()">닫기 ✕</button>
+      </div>
+      <p style="font-size:0.78rem; color:var(--text-sub); line-height:1.45; margin-bottom:8px;">
+        <code>문제추가_양식.md</code> 형식의 <code>.md</code> 파일을 불러오거나 아래에 붙여넣으면
+        <strong>정답 마스킹·글자수/빈칸·연대 분류·iTunes 음원 매칭</strong>이 자동 처리됩니다.
+      </p>
+      <div class="action-row" style="margin-bottom:8px; flex-wrap:wrap;">
+        <label class="btn btn-gold" style="flex:1.2; padding:7px 8px; font-size:0.78rem;">
+          📁 .md 파일 불러오기
+          <input type="file" id="mdImportFileInput" accept=".md,.txt,text/markdown,text/plain" style="display:none;" onchange="handleMdFileSelected(event)" />
+        </label>
+        <button type="button" class="btn" onclick="fillMdSampleTemplate()" style="flex:0.9; padding:7px 8px; font-size:0.78rem;">📝 예시 채우기</button>
+        <button type="button" class="btn btn-primary" onclick="parseMdTextareaInput()" style="flex:1; padding:7px 8px; font-size:0.78rem;">🔍 분석 · 미리보기</button>
+      </div>
+      <textarea id="mdImportTextarea" class="text-input" rows="5" placeholder="가수: 국카스텐&#10;동의어: 하현우, Guckkasten&#10;노래: 거울&#10;연도: 2010&#10;키워드: 사이키델릭 록, 1집 타이틀곡&#10;가사: 거울 속에 뒷모습을 보며 / 손가락질하는 너의 모습&#10;비하인드: ...&#10;---" style="font-size:0.78rem; line-height:1.45; margin-bottom:8px;"></textarea>
+
+      <div id="mdImportSummaryBar" style="font-size:0.78rem; font-weight:900; color:var(--primary-dark); margin-bottom:6px;">분석된 문제가 여기에 표시됩니다.</div>
+      <div id="mdImportPreviewList" class="md-preview-scroll"></div>
+
+      <div class="action-row" style="margin-top:10px;">
+        <button type="button" class="btn" onclick="copyMdQuestionsForDataJs()" style="flex:1; padding:9px 6px; font-size:0.78rem;">📋 data.js 코드 복사</button>
+        <button type="button" class="btn btn-primary" onclick="saveParsedMdQuestionsToServer()" style="flex:1.4; padding:9px 6px; font-size:0.82rem;">☁️ 수파베이스 서버 일괄 반영</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- ==================== [커스텀 알림 모달] ==================== -->
+  <div id="customDialogModal" class="modal-backdrop hidden" style="z-index:2500;">
+    <div class="modal-content" style="max-width:360px; text-align:center; padding:18px;">
+      <h3 id="dialogTitle" style="font-size:1.02rem; font-weight:900; color:var(--primary); margin-bottom:8px;">🛠️ 관리자 알림</h3>
+      <p id="dialogMessage" style="font-size:0.88rem; color:var(--text-main); line-height:1.55; margin-bottom:14px; word-break:keep-all;"></p>
+      <div id="dialogInputWrap" class="hidden" style="margin-bottom:12px;">
+        <input type="text" id="dialogPromptInput" class="text-input" autocomplete="off" />
+      </div>
+      <div class="action-row">
+        <button class="btn hidden" id="dialogCancelBtn" style="flex:1;">취소</button>
+        <button class="btn btn-primary" id="dialogConfirmBtn" style="flex:1.4;">확인</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="data.js?v=20.0"></script>
+  <script src="pixel_avatar.js?v=20.0"></script>
+  <script src="online.js?v=20.0"></script>
+  <script>
+    let adminOverridesList = [];
+    let currentAdminItemCat = "hair";
+    let adminConfigRowId = null;
+
+    async function initAdminPage() {
+      // [이중 보안] 아이디(닉네임)가 "관리자"로 로그인된 세션인지 서버 검증!
+      let isAuthorizedAdmin = false;
+      if (sbClient) {
+        try {
+          const { data } = await sbClient.auth.getSession();
+          const uid = data?.session?.user?.id;
+          if (uid) {
+            const { data: prof } = await sbClient
+              .from("profiles")
+              .select("nickname")
+              .eq("id", uid)
+              .maybeSingle();
+            if (prof && prof.nickname === "관리자") {
+              isAuthorizedAdmin = true;
+            }
+          }
+        } catch (e) {}
+      }
+
+      if (!isAuthorizedAdmin) {
+        gameAlert("⛔ [관리자] 계정으로 로그인한 상태에서만 접근할 수 있는 페이지입니다.", "접근 제한");
+        setTimeout(() => { location.href = "index.html"; }, 1400);
+        return;
+      }
+
+      window.__IS_VERIFIED_ADMIN_PAGE__ = true;
+      document.getElementById("adminContainer").classList.remove("hidden");
+      await fetchAdminConfigFromServer();
+      renderAdminSongsTable();
+      renderAdminItemsTable();
+      loadAdminUsers();
+      loadAdminReports();
+      loadAdminEvents();
+    }
+
+    async function fetchAdminConfigFromServer() {
+      if (!sbClient) return;
+      const { data } = await sbClient
+        .from("profiles")
+        .select("*")
+        .eq("nickname", "__ADMIN_CONFIG__")
+        .maybeSingle();
+
+      if (data) {
+        adminConfigRowId = data.id;
+        if (data.avatar_config && data.avatar_config.shopCatalog) {
+          applyServerShopCatalog(data.avatar_config.shopCatalog, data.avatar_config.catalogVersion || 0);
+        }
+        if (Array.isArray(data.owned_items)) {
+          adminOverridesList = data.owned_items;
+          applyServerSongsOverride(adminOverridesList);
+        }
+      }
+    }
+
+    async function persistAdminConfigToServer() {
+      if (!sbClient) return;
+      try {
+        if (!adminConfigRowId) {
+          // 관리자 설정 저장용 계정 생성 또는 조회
+          const email = "admin_system_config@musicking.com";
+          let uid = null;
+          const signInRes = await sbClient.auth.signInWithPassword({ email, password: "AdminConfigPassword123!" });
+          if (signInRes.data?.user) {
+            uid = signInRes.data.user.id;
+          } else {
+            const signUpRes = await sbClient.auth.signUp({ email, password: "AdminConfigPassword123!" });
+            uid = signUpRes.data?.user?.id;
+          }
+          adminConfigRowId = uid;
+        }
+
+        if (adminConfigRowId) {
+          await sbClient.from("profiles").upsert({
+            id: adminConfigRowId,
+            nickname: "__ADMIN_CONFIG__",
+            bio: "시스템 글로벌 설정 데이터",
+            cd_coins: 0,
+            avatar_config: { shopCatalog: AVATAR_SHOP_ITEMS, catalogVersion: SHOP_CATALOG_VERSION },
+            owned_items: adminOverridesList,
+            updated_at: new Date().toISOString()
+          });
+        }
+      } catch (e) {}
+    }
+
+    function switchAdminTab(tab) {
+      document.getElementById("tabBtnSongs").classList.toggle("active", tab === "songs");
+      document.getElementById("tabBtnItems").classList.toggle("active", tab === "items");
+      document.getElementById("tabBtnUsers").classList.toggle("active", tab === "users");
+      document.getElementById("tabBtnReports").classList.toggle("active", tab === "reports");
+      document.getElementById("tabBtnEvents").classList.toggle("active", tab === "events");
+      document.getElementById("tabBtnStore").classList.toggle("active", tab === "store");
+
+      document.getElementById("adminSongsSection").classList.toggle("hidden", tab !== "songs");
+      document.getElementById("adminItemsSection").classList.toggle("hidden", tab !== "items");
+      document.getElementById("adminUsersSection").classList.toggle("hidden", tab !== "users");
+      document.getElementById("adminReportsSection").classList.toggle("hidden", tab !== "reports");
+      document.getElementById("adminEventsSection").classList.toggle("hidden", tab !== "events");
+      document.getElementById("adminStoreSection").classList.toggle("hidden", tab !== "store");
+      if (tab === "reports") loadAdminReports();
+      if (tab === "events") loadAdminEvents();
+    }
+
+    window.exportQuestionsJson = function () {
+      const jsonStr = JSON.stringify(QUESTIONS_DB, null, 2);
+      const blob = new Blob([jsonStr], { type: "application/json;charset=utf-8" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = "questions.json";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    };
+
+    let adminEventsCache = [];
+    async function loadAdminEvents() {
+      const tbody = document.getElementById("adminEventsTbody");
+      if (!tbody || !sbClient) return;
+      const { data, error } = await sbClient.from("events").select("*").order("sort_order", { ascending: true }).order("id", { ascending: true });
+      if (error) {
+        tbody.innerHTML = `<tr><td colspan="5">이벤트 조회 오류 (테섭 events 테이블 확인)</td></tr>`;
+        return;
+      }
+      adminEventsCache = data || [];
+      if (adminEventsCache.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="5">등록된 이벤트가 없습니다.</td></tr>`;
+        return;
+      }
+      tbody.innerHTML = adminEventsCache
+        .map(ev => `
+          <tr>
+            <td>#${ev.id}</td>
+            <td>
+              <button class="btn" style="padding:3px 7px; font-size:0.72rem; background:${ev.is_published ? "#dcfce7" : "#f1f5f9"};" onclick="toggleAdminEventPublish(${ev.id}, ${!ev.is_published})">
+                ${ev.is_published ? "✅ 게시중" : "⏸ 미게시"}
+              </button>
+            </td>
+            <td><strong>${ev.title}</strong></td>
+            <td style="font-size:0.76rem; max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${ev.content}</td>
+            <td>
+              <button class="btn" style="padding:3px 7px; font-size:0.72rem;" onclick="editAdminEvent(${ev.id})">수정</button>
+              <button class="btn" style="padding:3px 7px; font-size:0.72rem; color:var(--danger);" onclick="deleteAdminEvent(${ev.id})">삭제</button>
+            </td>
+          </tr>
+        `)
+        .join("");
+    }
+
+    window.resetAdminEventForm = function () {
+      document.getElementById("adminEventEditId").value = "";
+      document.getElementById("adminEventTitleInput").value = "";
+      document.getElementById("adminEventBannerUrlInput").value = "";
+      document.getElementById("adminEventContentInput").value = "";
+      document.getElementById("adminEventPublishedInput").checked = true;
+    };
+
+    window.editAdminEvent = function (id) {
+      const ev = adminEventsCache.find(x => x.id === id);
+      if (!ev) return;
+      document.getElementById("adminEventEditId").value = ev.id;
+      document.getElementById("adminEventTitleInput").value = ev.title || "";
+      document.getElementById("adminEventBannerUrlInput").value = ev.banner_url || "";
+      document.getElementById("adminEventContentInput").value = ev.content || "";
+      document.getElementById("adminEventPublishedInput").checked = Boolean(ev.is_published);
+    };
+
+    window.uploadAdminEventBannerImage = async function (e) {
+      const file = e.target?.files?.[0];
+      if (!file || !sbClient) return;
+      const ext = (file.name.split(".").pop() || "png").toLowerCase();
+      const fileName = `banner_${Date.now()}.${ext}`;
+      const { error } = await sbClient.storage.from("event-banners").upload(fileName, file, { upsert: true });
+      if (error) {
+        gameAlert("배너 이미지 업로드 실패: " + error.message);
+        return;
+      }
+      const { data: pub } = sbClient.storage.from("event-banners").getPublicUrl(fileName);
+      if (pub?.publicUrl) {
+        document.getElementById("adminEventBannerUrlInput").value = pub.publicUrl;
+        gameAlert("🖼️ 배너 이미지가 Supabase에 업로드되었습니다!");
+      }
+    };
+
+    window.saveAdminEvent = async function () {
+      if (!sbClient) return;
+      const editId = document.getElementById("adminEventEditId").value;
+      const title = document.getElementById("adminEventTitleInput").value.trim();
+      const banner_url = document.getElementById("adminEventBannerUrlInput").value.trim();
+      const content = document.getElementById("adminEventContentInput").value.trim();
+      const is_published = document.getElementById("adminEventPublishedInput").checked;
+      if (!title || !content) {
+        gameAlert("제목과 내용을 모두 입력해주세요!");
+        return;
+      }
+      const payload = { title, banner_url, content, is_published, updated_at: new Date().toISOString() };
+      if (editId) {
+        await sbClient.from("events").update(payload).eq("id", Number(editId));
+      } else {
+        await sbClient.from("events").insert({ ...payload, sort_order: adminEventsCache.length + 1 });
+      }
+      resetAdminEventForm();
+      await loadAdminEvents();
+      gameAlert("✅ 이벤트가 저장되었습니다!");
+    };
+
+    window.toggleAdminEventPublish = async function (id, nextState) {
+      if (!sbClient) return;
+      await sbClient.from("events").update({ is_published: nextState, updated_at: new Date().toISOString() }).eq("id", id);
+      await loadAdminEvents();
+    };
+
+    window.deleteAdminEvent = function (id) {
+      gameConfirm("이 이벤트를 삭제할까요?", async () => {
+        await sbClient.from("events").delete().eq("id", id);
+        await loadAdminEvents();
+      });
+    };
+
+    window.copyStoreText = async function (elId, label) {
+      const txt = document.getElementById(elId)?.textContent?.trim() || "";
+      if (!txt) return;
+      try {
+        await navigator.clipboard.writeText(txt);
+        gameAlert(`📋 [${label}] 복사 완료:\n${txt}`);
+      } catch (e) {
+        gameAlert(`복사 권한이 없습니다. 직접 드래그해 복사해 주세요:\n${txt}`);
+      }
+    };
+
+    window.copyPrivacyPolicyTemplate = async function () {
+      const text = [
+        "[음악왕 개인정보처리방침]",
+        "- 수집하는 개인정보 항목: 닉네임, 게임 플레이 기록, 유저 간 채팅 내역",
+        "- 수집 및 이용 목적: 게임 랭킹 운영, 원활한 서비스 제공 및 불량 이용자 제재",
+        "- 보유 및 이용 기간: 회원의 '계정 탈퇴' 시 즉시 파기합니다.",
+        "- 제3자 제공: 유저의 동의 없이 외부 제3자에게 제공하지 않습니다."
+      ].join("\n");
+      try {
+        await navigator.clipboard.writeText(text);
+        gameAlert("📋 [음악왕 개인정보처리방침] 전문이 클립보드에 복사되었습니다!");
+      } catch (e) {
+        gameAlert("클립보드 복사 권한이 없어 복사할 수 없습니다.");
+      }
+    };
+
+    // ==================== 1. 음악 리스트 렌더링 & 더블클릭 수정 ====================
+    function renderAdminSongsTable() {
+      const dec = document.getElementById("adminDecadeFilter").value;
+      const kw = document.getElementById("adminSongSearch").value.trim().toLowerCase();
+
+      const filtered = QUESTIONS_DB.filter(q => {
+        if (dec !== "ALL" && q.decade !== dec) return false;
+        if (!kw) return true;
+        return (
+          q.artist.toLowerCase().includes(kw) ||
+          q.title.toLowerCase().includes(kw) ||
+          (q.behindQuestion || "").toLowerCase().includes(kw) ||
+          (q.keywordHint || "").toLowerCase().includes(kw)
+        );
+      });
+
+      document.getElementById("adminSongTotalCount").textContent = filtered.length;
+      const tbody = document.getElementById("adminSongsTbody");
+
+      tbody.innerHTML = filtered
+        .map(
+          q => `
+        <tr ondblclick="openSongEditModal('${q.id}')" title="더블클릭하여 수정">
+          <td><strong>${q.year}</strong><br/><span style="font-size:0.72rem; color:var(--text-sub);">${q.decade}</span></td>
+          <td><strong>${q.artist}</strong><br/><span style="font-size:0.72rem; color:var(--text-sub);">${(q.artistAliases || []).join(", ")}</span></td>
+          <td><strong>${q.title}</strong> ${q.hardMode ? "🔥" : ""}</td>
+          <td style="font-size:0.78rem; color:var(--text-sub);">${(q.behindQuestion || "").slice(0, 75)}...</td>
+          <td><button class="btn btn-primary" style="padding:4px 8px; font-size:0.74rem;" onclick="openSongEditModal('${q.id}')">수정</button></td>
+        </tr>
+      `
+        )
+        .join("");
+    }
+
+    window.openSongEditModal = function (songId) {
+      const modal = document.getElementById("songEditModal");
+      if (!songId) {
+        document.getElementById("songModalTitle").textContent = "➕ 새 음악 문제 추가";
+        document.getElementById("editSongId").value = `custom_${Date.now()}`;
+        document.getElementById("editSongArtist").value = "";
+        document.getElementById("editSongTitle").value = "";
+        document.getElementById("editSongArtistAliases").value = "";
+        document.getElementById("editSongTitleAliases").value = "";
+        document.getElementById("editSongYear").value = 2024;
+        document.getElementById("editSongHardMode").value = "false";
+        document.getElementById("editSongKeyword").value = "";
+        document.getElementById("editSongLyrics").value = "";
+        document.getElementById("editSongBehind").value = "";
+        document.getElementById("editSongNote").value = "";
+      } else {
+        const q = QUESTIONS_DB.find(item => item.id === songId);
+        if (!q) return;
+        document.getElementById("songModalTitle").textContent = `🎵 [${q.artist} - ${q.title}] 수정`;
+        document.getElementById("editSongId").value = q.id;
+        document.getElementById("editSongArtist").value = q.artist;
+        document.getElementById("editSongTitle").value = q.title;
+        document.getElementById("editSongArtistAliases").value = (q.artistAliases || []).join(", ");
+        document.getElementById("editSongTitleAliases").value = (q.titleAliases || []).join(", ");
+        document.getElementById("editSongYear").value = q.year;
+        document.getElementById("editSongHardMode").value = q.hardMode ? "true" : "false";
+        document.getElementById("editSongKeyword").value = q.keywordHint || "";
+        document.getElementById("editSongLyrics").value = q.lyricsQuestion || "";
+        document.getElementById("editSongBehind").value = q.behindQuestion || "";
+        document.getElementById("editSongNote").value = q.behindAnswerNote || "";
+      }
+      modal.classList.remove("hidden");
+    };
+
+    window.saveSongFromModal = async function () {
+      const id = document.getElementById("editSongId").value;
+      const artist = document.getElementById("editSongArtist").value.trim();
+      const title = document.getElementById("editSongTitle").value.trim();
+      const year = Number(document.getElementById("editSongYear").value) || 2020;
+
+      if (!artist || !title) {
+        gameAlert("가수 이름과 노래 제목은 필수입니다!");
+        return;
+      }
+
+      let decade = "2020s";
+      if (year < 2000) decade = "1990s";
+      else if (year < 2010) decade = "2000s";
+      else if (year < 2020) decade = "2010s";
+
+      const updatedObj = {
+        id,
+        decade,
+        year,
+        artist,
+        artistAliases: document.getElementById("editSongArtistAliases").value.split(",").map(s => s.trim()).filter(Boolean),
+        title,
+        titleAliases: document.getElementById("editSongTitleAliases").value.split(",").map(s => s.trim()).filter(Boolean),
+        hardMode: document.getElementById("editSongHardMode").value === "true",
+        keywordHint: document.getElementById("editSongKeyword").value.trim(),
+        lyricsQuestion: document.getElementById("editSongLyrics").value.trim(),
+        behindQuestion: document.getElementById("editSongBehind").value.trim(),
+        behindAnswerNote: document.getElementById("editSongNote").value.trim(),
+        itunesQuery: `${artist} ${title}`
+      };
+
+      const existIdx = QUESTIONS_DB.findIndex(q => q.id === id);
+      if (existIdx !== -1) {
+        QUESTIONS_DB[existIdx] = updatedObj;
+      } else {
+        QUESTIONS_DB.unshift(updatedObj);
+      }
+
+      const ovIdx = adminOverridesList.findIndex(q => q.id === id);
+      if (ovIdx !== -1) adminOverridesList[ovIdx] = updatedObj;
+      else adminOverridesList.push(updatedObj);
+
+      await persistAdminConfigToServer();
+      document.getElementById("songEditModal").classList.add("hidden");
+      renderAdminSongsTable();
+      gameAlert(`✅ [${artist} - ${title}] 정보가 수파베이스 서버에 저장되었습니다!`);
+    };
+
+    window.deleteSongFromModal = function () {
+      const id = document.getElementById("editSongId").value;
+      gameConfirm("정말 이 음악 문제를 리스트에서 삭제하시겠습니까?", async () => {
+        const idx = QUESTIONS_DB.findIndex(q => q.id === id);
+        if (idx !== -1) QUESTIONS_DB.splice(idx, 1);
+        adminOverridesList.push({ id, _deleted: true });
+        await persistAdminConfigToServer();
+        document.getElementById("songEditModal").classList.add("hidden");
+        renderAdminSongsTable();
+        gameAlert("🗑️ 삭제 완료 및 수파베이스 반영 완료!");
+      });
+    };
+
+    // ==================== 2. 상점 아이템 관리 ====================
+    window.selectAdminItemCat = function (cat) {
+      currentAdminItemCat = cat;
+      document.querySelectorAll("[data-admin-cat]").forEach(b => {
+        b.classList.toggle("active", b.getAttribute("data-admin-cat") === cat);
+      });
+      renderAdminItemsTable();
+    };
+
+    function renderAdminItemsTable() {
+      const list = AVATAR_SHOP_ITEMS[currentAdminItemCat] || [];
+      const tbody = document.getElementById("adminItemsTbody");
+      tbody.innerHTML = list
+        .map(
+          (item, idx) => `
+        <tr>
+          <td><code>${item.id}</code></td>
+          <td><input type="text" class="text-input" id="itemName_${idx}" value="${item.name}" style="padding:5px 8px; font-size:0.8rem;" /></td>
+          <td><input type="number" class="text-input" id="itemPrice_${idx}" value="${item.price}" style="padding:5px 8px; font-size:0.8rem;" /></td>
+          <td><input type="text" class="text-input" id="itemColor_${idx}" value="${item.color || item.main || ""}" placeholder="#hex" style="padding:5px 8px; font-size:0.8rem;" /></td>
+          <td>
+            <button class="btn btn-primary" style="padding:4px 8px; font-size:0.75rem;" onclick="saveAdminItemRow(${idx})">☁️ 저장</button>
+            <button class="btn" style="padding:4px 8px; font-size:0.75rem; color:var(--danger);" onclick="deleteAdminItemRow(${idx})">삭제</button>
+          </td>
+        </tr>
+      `
+        )
+        .join("");
+    }
+
+    window.saveAdminItemRow = async function (idx) {
+      const list = AVATAR_SHOP_ITEMS[currentAdminItemCat];
+      if (!list || !list[idx]) return;
+      list[idx].name = document.getElementById(`itemName_${idx}`).value.trim();
+      list[idx].price = Number(document.getElementById(`itemPrice_${idx}`).value) || 0;
+      const col = document.getElementById(`itemColor_${idx}`).value.trim();
+      if (col) {
+        if (list[idx].main !== undefined) list[idx].main = col;
+        else list[idx].color = col;
+      }
+      await persistAdminConfigToServer();
+      gameAlert(`✅ [${list[idx].name}] 아이템 가격/설정이 수파베이스에 저장되었습니다!`);
+    };
+
+    window.deleteAdminItemRow = function (idx) {
+      const list = AVATAR_SHOP_ITEMS[currentAdminItemCat];
+      if (!list || !list[idx]) return;
+      gameConfirm(`[${list[idx].name}] 아이템을 상점에서 삭제할까요?`, async () => {
+        list.splice(idx, 1);
+        await persistAdminConfigToServer();
+        renderAdminItemsTable();
+      });
+    };
+
+    window.openAddItemModal = function () {
+      gamePrompt(`[${currentAdminItemCat}] 카테고리에 추가할 새 아이템 이름을 입력하세요:`, "신규 한정판 파츠", name => {
+        if (!name) return;
+        gamePrompt("아이템 가격(CD)을 입력하세요:", "80", async priceStr => {
+          const price = Number(priceStr) || 50;
+          const newItem = {
+            id: `item_${Date.now().toString(36)}`,
+            name,
+            price,
+            color: "#6366f1",
+            main: "#6366f1",
+            sub: "#fde047"
+          };
+          AVATAR_SHOP_ITEMS[currentAdminItemCat].push(newItem);
+          await persistAdminConfigToServer();
+          renderAdminItemsTable();
+          gameAlert(`🎉 [${name} (${price} CD)] 아이템이 추가되어 서버에 반영되었습니다!`);
+        });
+      });
+    };
+
+    // ==================== 3. 계정 정보 및 초기화 관리 ====================
+    async function loadAdminUsers() {
+      const tbody = document.getElementById("adminUsersTbody");
+      if (!sbClient) return;
+      tbody.innerHTML = `<tr><td colspan="6" style="text-align:center;">계정 목록 불러오는 중...</td></tr>`;
+
+      const { data: users } = await sbClient
+        .from("profiles")
+        .select("*")
+        .neq("nickname", "__ADMIN_CONFIG__")
+        .order("updated_at", { ascending: false });
+
+      if (!users || users.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="6" style="text-align:center; padding:20px;">가입된 유저 계정이 없습니다.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = users
+        .map(
+          u => `
+        <tr>
+          <td><strong>${u.nickname}</strong></td>
+          <td>${u.avatar_config?.gender === "female" ? "👧 여자" : "👦 남자"}</td>
+          <td style="font-size:0.78rem; color:var(--text-sub);">${u.bio || ""}</td>
+          <td><strong style="color:#b45309;">💿 ${u.cd_coins ?? 0}</strong></td>
+          <td style="font-size:0.75rem; color:var(--text-sub);">${u.updated_at ? new Date(u.updated_at).toLocaleString() : "-"}</td>
+          <td>
+            <button class="btn btn-gold" style="padding:4px 7px; font-size:0.72rem;" onclick="adminGiveCd('${u.id}', '${u.nickname}', ${u.cd_coins || 0})">💿 CD설정</button>
+            <button class="btn" style="padding:4px 7px; font-size:0.72rem; color:var(--danger);" onclick="adminResetAccount('${u.id}', '${u.nickname}')">🔄 계정초기화</button>
+          </td>
+        </tr>
+      `
+        )
+        .join("");
+    }
+
+    window.adminGiveCd = function (uid, nick, curCd) {
+      gamePrompt(`[${nick}] 유저의 보유 CD를 몇 개로 설정할까요?`, String(curCd), async val => {
+        const nextCd = Number(val);
+        if (isNaN(nextCd)) return;
+        await sbClient.from("profiles").update({ cd_coins: nextCd }).eq("id", uid);
+        loadAdminUsers();
+        gameAlert(`✅ [${nick}]님의 보유 CD가 ${nextCd}개로 변경되었습니다!`);
+      });
+    };
+
+    window.adminResetAccount = function (uid, nick) {
+      gameConfirm(
+        `[${nick}] 계정을 초기화하시겠습니까?\n(초기화 시 해당 닉네임의 프로필이 리셋되어 유저가 새 비밀번호로 다시 가입할 수 있게 됩니다.)`,
+        async () => {
+          await sbClient.from("profiles").delete().eq("id", uid);
+          loadAdminUsers();
+          gameAlert(`🔄 [${nick}] 계정이 초기화되었습니다. 이제 해당 닉네임으로 새 비밀번호 재가입이 가능합니다!`);
+        },
+        "🔄 계정 및 패스워드 재설정 초기화"
+      );
+    };
+
+    // ==================== 4. 유저 신고 내역 조회 (user_reports) ====================
+    async function loadAdminReports() {
+      const tbody = document.getElementById("adminReportsTbody");
+      const countEl = document.getElementById("adminReportsTotalCount");
+      if (!tbody || !sbClient) return;
+      tbody.innerHTML = `<tr><td colspan="4" style="text-align:center;">신고 내역 불러오는 중...</td></tr>`;
+
+      try {
+        const [{ data: reports, error }, { data: profs }] = await Promise.all([
+          sbClient.from("user_reports").select("*").order("created_at", { ascending: false }).limit(200),
+          sbClient.from("profiles").select("id, nickname")
+        ]);
+
+        if (error) {
+          if (countEl) countEl.textContent = "0";
+          tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:18px; color:var(--danger);">신고 내역을 조회할 수 없습니다 (${escapeMdHtml(error.message)}).</td></tr>`;
+          return;
+        }
+
+        const nickMap = new Map((profs || []).map(p => [p.id, p.nickname]));
+        const list = reports || [];
+        if (countEl) countEl.textContent = String(list.length);
+
+        if (list.length === 0) {
+          tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:20px; color:var(--text-sub);">접수된 신고 내역이 없습니다.</td></tr>`;
+          return;
+        }
+
+        tbody.innerHTML = list
+          .map(r => {
+            const reporterNick = nickMap.get(r.reporter_id) || String(r.reporter_id || "-").slice(0, 8);
+            const targetNick = r.target_nickname || nickMap.get(r.target_id) || String(r.target_id || "-").slice(0, 8);
+            const timeStr = r.created_at ? new Date(r.created_at).toLocaleString() : "-";
+            return `
+              <tr>
+                <td style="font-size:0.75rem; color:var(--text-sub);">${escapeMdHtml(timeStr)}</td>
+                <td><strong>${escapeMdHtml(reporterNick)}</strong></td>
+                <td><strong style="color:#be123c;">${escapeMdHtml(targetNick)}</strong></td>
+                <td style="font-size:0.82rem; word-break:keep-all;">${escapeMdHtml(r.reason)}</td>
+              </tr>
+            `;
+          })
+          .join("");
+      } catch (e) {
+        tbody.innerHTML = `<tr><td colspan="4" style="text-align:center; padding:18px;">신고 내역 조회 중 오류가 발생했습니다.</td></tr>`;
+      }
+    }
+
+    // ==================== 1-B. MD 파일/양식 일괄 추가 모달 ====================
+    const mdImportState = {
+      items: [],
+      audio: new Audio(),
+      audioTimer: null
+    };
+
+    function escapeMdHtml(str) {
+      return String(str || "")
+        .replace(/&/g, "&amp;")
+        .replace(/</g, "&lt;")
+        .replace(/>/g, "&gt;")
+        .replace(/"/g, "&quot;");
+    }
+
+    function stopMdPreviewAudio() {
+      if (mdImportState.audioTimer) {
+        clearTimeout(mdImportState.audioTimer);
+        mdImportState.audioTimer = null;
+      }
+      try { mdImportState.audio.pause(); } catch (e) {}
+    }
+
+    window.openMdImportModal = function () {
+      const modal = document.getElementById("mdImportModal");
+      if (modal) modal.classList.remove("hidden");
+    };
+
+    window.closeMdImportModal = function () {
+      stopMdPreviewAudio();
+      const modal = document.getElementById("mdImportModal");
+      if (modal) modal.classList.add("hidden");
+    };
+
+    window.fillMdSampleTemplate = function () {
+      const ta = document.getElementById("mdImportTextarea");
+      if (!ta) return;
+      ta.value = [
+        "가수: 국카스텐",
+        "동의어: 하현우, Guckkasten",
+        "노래: 거울",
+        "연도: 2010",
+        "키워드: 사이키델릭 록, 1집 타이틀곡, 자아 성찰",
+        "가사: 거울 속에 뒷모습을 보며 / 손가락질하는 너의 모습",
+        "비하인드: 인디 시절부터 록 페스티벌을 평정했던 밴드의 정규 1집 타이틀곡으로, 도둑맞은 장비 사건 등으로 우여곡절 끝에 재녹음판이 발매된 사연이 있는 곡입니다.",
+        "---",
+        "가수: 더 클래식",
+        "동의어: 김광진",
+        "노래: 여우야",
+        "연도: 1995",
+        "키워드: 2집 타이틀곡, 도도한 그녀, 오케스트라 팝",
+        "가사: 사는 게 그런 거지 뭐 / 마음대로 되는 일이 하나도 없어",
+        "비하인드: 1집 '마법의 성' 대히트 이후 발표한 2집 타이틀곡으로, 짝사랑하는 도도한 이성을 여우에 비유한 재치 있는 가사가 특징입니다."
+      ].join("\n");
+      parseMdTextareaInput();
+    };
+
+    window.handleMdFileSelected = function (event) {
+      const file = event?.target?.files?.[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = e => {
+        const ta = document.getElementById("mdImportTextarea");
+        if (ta) ta.value = String(e.target?.result || "");
+        parseMdTextareaInput();
+      };
+      reader.readAsText(file, "UTF-8");
+    };
+
+    window.parseMdTextareaInput = function () {
+      const ta = document.getElementById("mdImportTextarea");
+      const listEl = document.getElementById("mdImportPreviewList");
+      const sumEl = document.getElementById("mdImportSummaryBar");
+      if (!ta || !listEl || !sumEl) return;
+
+      const parsed = typeof parseMarkdownQuestions === "function" ? parseMarkdownQuestions(ta.value) : [];
+      mdImportState.items = parsed;
+
+      if (parsed.length === 0) {
+        sumEl.textContent = "분석된 문제가 없습니다. '가수:' 와 '노래:' 형식을 확인해주세요.";
+        listEl.innerHTML = `<div style="text-align:center; padding:18px; color:var(--text-sub); font-size:0.8rem;">분석 결과가 없습니다.</div>`;
+        return;
+      }
+
+      const dupCount = parsed.filter(p => p.isDuplicate).length;
+      sumEl.textContent = `✅ 총 ${parsed.length}곡 분석 완료 (신규 ${parsed.length - dupCount}곡 · 기존 덮어쓰기 ${dupCount}곡)`;
+
+      listEl.innerHTML = parsed
+        .map((entry, idx) => {
+          const q = entry.question;
+          const hintArtist = typeof buildQuizLetterHint === "function" ? buildQuizLetterHint(q.artist) : q.artist;
+          const hintTitle = typeof buildQuizLetterHint === "function" ? buildQuizLetterHint(q.title) : q.title;
+          return `
+            <div class="md-preview-card">
+              <div class="md-preview-top">
+                <label style="display:flex; align-items:center; gap:6px; cursor:pointer; font-weight:900; font-size:0.85rem;">
+                  <input type="checkbox" class="md-import-chk" data-md-idx="${idx}" checked style="width:16px; height:16px; accent-color:#2563eb;" />
+                  <span>${escapeMdHtml(q.artist)} - ${escapeMdHtml(q.title)}</span>
+                </label>
+                <div style="display:flex; gap:4px; align-items:center; flex-wrap:wrap;">
+                  <span class="badge ${entry.isDuplicate ? "gold" : "accent"}" style="font-size:0.66rem;">${entry.isDuplicate ? "기존 업데이트" : "신규"}</span>
+                  <span class="badge" style="font-size:0.66rem;">${q.year} (${q.decade})</span>
+                  ${q.hardMode ? `<span class="badge" style="font-size:0.66rem; background:#fff1f2; color:#be123c; border-color:#f43f5e;">🔥하드</span>` : ""}
+                </div>
+              </div>
+              <div style="font-size:0.72rem; color:var(--text-sub); font-weight:700;">
+                글자수/빈칸: 가수 <strong>${escapeMdHtml(hintArtist)}</strong> · 노래 <strong>${escapeMdHtml(hintTitle)}</strong>
+                ${q.artistAliases.length ? `<br/>동의어: ${escapeMdHtml(q.artistAliases.join(", "))}` : ""}
+              </div>
+              <div style="font-size:0.72rem; color:var(--primary-dark); font-weight:700;">
+                🔑 ${escapeMdHtml(q.keywordHint)}
+              </div>
+              <textarea class="text-input md-behind-edit" data-md-idx="${idx}" rows="2" style="font-size:0.74rem; padding:6px 8px;" onchange="updateMdBehindText(${idx}, this.value)">${escapeMdHtml(q.behindQuestion)}</textarea>
+              <div style="display:flex; justify-content:space-between; align-items:center; gap:6px;">
+                <span id="mdAudioStatus_${idx}" style="font-size:0.71rem; color:var(--text-sub); overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">🎵 검색어: ${escapeMdHtml(q.itunesQuery)}</span>
+                <button type="button" class="btn" onclick="testMdItunesAudio(${idx})" style="padding:4px 9px; font-size:0.72rem; flex-shrink:0;">🎧 1초 음원 테스트</button>
+              </div>
+            </div>
+          `;
+        })
+        .join("");
+    };
+
+    window.updateMdBehindText = function (idx, val) {
+      if (mdImportState.items[idx]?.question) {
+        mdImportState.items[idx].question.behindQuestion = String(val || "").trim();
+      }
+    };
+
+    window.testMdItunesAudio = async function (idx) {
+      const entry = mdImportState.items[idx];
+      const statusEl = document.getElementById(`mdAudioStatus_${idx}`);
+      if (!entry || !statusEl) return;
+
+      stopMdPreviewAudio();
+      statusEl.textContent = "⏳ iTunes 음원 검색중...";
+      const info = typeof fetchItunesSongMeta === "function" ? await fetchItunesSongMeta(entry.question.itunesQuery) : null;
+      if (!info || !info.previewUrl) {
+        statusEl.textContent = "⚠️ iTunes 미리듣기 음원을 찾지 못했습니다.";
+        return;
+      }
+
+      statusEl.textContent = `🔊 매칭됨: ${info.artistName || ""} - ${info.trackName || ""} (1.5초 재생)`;
+      try {
+        mdImportState.audio.src = info.previewUrl;
+        mdImportState.audio.currentTime = 6;
+        await mdImportState.audio.play();
+        mdImportState.audioTimer = setTimeout(() => {
+          try { mdImportState.audio.pause(); } catch (e) {}
+        }, 1500);
+      } catch (e) {}
+    };
+
+    function getSelectedMdQuestions() {
+      const checks = Array.from(document.querySelectorAll(".md-import-chk:checked"));
+      const result = [];
+      checks.forEach(chk => {
+        const idx = Number(chk.dataset.mdIdx);
+        const ta = document.querySelector(`.md-behind-edit[data-md-idx="${idx}"]`);
+        const entry = mdImportState.items[idx];
+        if (!entry) return;
+        const q = { ...entry.question };
+        if (ta) q.behindQuestion = ta.value.trim();
+        result.push(q);
+      });
+      return result;
+    }
+
+    window.copyMdQuestionsForDataJs = async function () {
+      const selected = getSelectedMdQuestions();
+      if (selected.length === 0) {
+        gameAlert("먼저 MD 내용을 입력하고 [🔍 분석 · 미리보기]를 눌러주세요.");
+        return;
+      }
+      const snippet = typeof formatQuestionsAsDataJsSnippet === "function" ? formatQuestionsAsDataJsSnippet(selected) : JSON.stringify(selected, null, 2);
+      try {
+        await navigator.clipboard.writeText(snippet);
+        gameAlert(`📋 ${selected.length}곡의 data.js 코드가 클립보드에 복사되었습니다!`);
+      } catch (e) {
+        gameAlert("클립보드 복사 권한이 없어 복사할 수 없습니다.");
+      }
+    };
+
+    window.saveParsedMdQuestionsToServer = async function () {
+      const selected = getSelectedMdQuestions();
+      if (selected.length === 0) {
+        gameAlert("저장할 문제를 선택해주세요. (먼저 [🔍 분석 · 미리보기] 실행)");
+        return;
+      }
+
+      selected.forEach(sq => {
+        const dbIdx = QUESTIONS_DB.findIndex(item => item.id === sq.id);
+        if (dbIdx !== -1) QUESTIONS_DB[dbIdx] = { ...sq };
+        else QUESTIONS_DB.unshift({ ...sq });
+
+        const ovIdx = adminOverridesList.findIndex(item => item && item.id === sq.id);
+        if (ovIdx !== -1) adminOverridesList[ovIdx] = { ...sq };
+        else adminOverridesList.push({ ...sq });
+      });
+
+      await persistAdminConfigToServer();
+      renderAdminSongsTable();
+      closeMdImportModal();
+      gameAlert(`✅ 총 ${selected.length}곡이 마스킹·연동되어 수파베이스 서버에 반영되었습니다!`, "☁️ MD 일괄 반영 완료");
+    };
+
+    document.addEventListener("DOMContentLoaded", initAdminPage);
+  </script>
+</body>
+</html>

@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#38bdf8" />
+      <stop offset="100%" stop-color="#2563eb" />
+    </linearGradient>
+    <linearGradient id="gold" x1="0" y1="0" x2="0" y2="1">
+      <stop offset="0%" stop-color="#fef08a" />
+      <stop offset="50%" stop-color="#facc15" />
+      <stop offset="100%" stop-color="#d97706" />
+    </linearGradient>
+  </defs>
+  <rect width="512" height="512" rx="112" fill="url(#bg)" />
+  <circle cx="256" cy="256" r="196" fill="rgba(255,255,255,0.14)" />
+  <!-- 왕관 -->
+  <path d="M126 320 L106 168 L186 226 L256 122 L326 226 L406 168 L386 320 Z" fill="url(#gold)" stroke="#1e1b18" stroke-width="18" stroke-linejoin="round" />
+  <rect x="122" y="320" width="268" height="44" rx="14" fill="#f59e0b" stroke="#1e1b18" stroke-width="18" />
+  <!-- 왕관 보석 -->
+  <circle cx="256" cy="245" r="24" fill="#ef4444" stroke="#1e1b18" stroke-width="10" />
+  <circle cx="176" cy="264" r="16" fill="#38bdf8" stroke="#1e1b18" stroke-width="8" />
+  <circle cx="336" cy="264" r="16" fill="#38bdf8" stroke="#1e1b18" stroke-width="8" />
+  <!-- 음표 배지 -->
+  <circle cx="378" cy="368" r="64" fill="#1e1b4b" stroke="#1e1b18" stroke-width="14" />
+  <text x="378" y="392" font-size="70" text-anchor="middle" fill="#fde047" font-family="sans-serif" font-weight="900">♪</text>
+</svg>
