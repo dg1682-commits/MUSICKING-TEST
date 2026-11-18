@@ -680,7 +680,9 @@ async function fetchItunesTrack(q) {
     typeof fetchItunesSongMeta === "function"
       ? await fetchItunesSongMeta(q)
       : { previewUrl: null, artworkUrl: "" };
-  state.itunesCache.set(q.id, info);
+  if (info && info.previewUrl) {
+    state.itunesCache.set(q.id, info);
+  }
   return info;
 }
 

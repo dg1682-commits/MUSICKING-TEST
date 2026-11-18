@@ -158,7 +158,7 @@
   <style>
     .hidden, [hidden] { display: none !important; }
   </style>
-  <link rel="stylesheet" href="style.css?v=20.2" />
+  <link rel="stylesheet" href="style.css?v=20.3" />
   <script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script defer src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
 </head>
@@ -269,10 +269,10 @@
             <button class="btn btn-primary" id="enterPlayHubBtn" onclick="switchScreen('playHubScreen')">
               <span>🎮 플레이</span>
             </button>
-            <button class="btn btn-gold" id="enterBagBtn" onclick="openBagScreen()">
+            <button class="btn btn-home-white" id="enterBagBtn" onclick="openBagScreen()">
               <span>🎒 가방</span>
             </button>
-            <button class="btn btn-fishing-green" id="enterFishingBtn" onclick="enterFishingRoom()">
+            <button class="btn btn-home-white" id="enterFishingBtn" onclick="enterFishingRoom()">
               <span>🎣 낚시터</span>
             </button>
             <button class="btn btn-home-white" onclick="openShopModal()">👗 상점 · 옷장</button>
@@ -969,20 +969,14 @@
             <button type="button" id="fishingSoundBtn" class="fishing-sound-mini-btn" onclick="event.stopPropagation(); toggleBgmMute()" title="배경음악 켜기/끄기">🔊</button>
           </div>
           <div id="fishingChannelLabel" class="fishing-channel-badge">🎣 통합 서버 · 잔잔한 호수</div>
+        </div>
+
+        <!-- 좌측 하단: 보유 CD/EXP + 경험치/CD 게이지 바 + 30분 CD 2배 -->
+        <div class="fishing-bottom-left" onclick="event.stopPropagation()">
           <div id="fishingMyBalanceBadge" class="fishing-balance-badge">
             <span id="fishingMyCdText" class="fishing-balance-line is-cd">💿 보유 0 CD</span>
             <span id="fishingMyExpText" class="fishing-balance-line is-exp">✨ Lv.1 · 0 EXP</span>
           </div>
-        </div>
-
-        <!-- 중앙 상단: 하루 누적시간 (매일 오전 06:00 초기화) -->
-        <div class="fishing-top-center">
-          <div id="fishingElapsedTimer" class="fishing-elapsed-pill">⏱️ 00:00:00 / 06:00:00</div>
-          <div class="fishing-reset-sub">매일 오전 06:00 초기화</div>
-        </div>
-
-        <!-- 우측 상단 모서리: 누적 경험치 / CD 체력바 + 접속 중인 유저 닉네임 리스트 -->
-        <div class="fishing-right-column">
           <div class="fishing-hud-box">
             <div class="fishing-hud-gauge">
               <div id="fishingExpStatText" class="fishing-hud-stat-row">경험치 +0 (0/1,000)</div>
@@ -999,7 +993,16 @@
             <div id="fishingBuffBadge" class="fishing-buff-pill hidden"></div>
             <button type="button" id="fishing2xBuffBtn" class="btn btn-gold" onclick="activateFishing2xBuffAd()" style="margin-top:4px; padding:4px 8px; font-size:0.68rem; width:100%;">📺 30분 CD 2배</button>
           </div>
+        </div>
 
+        <!-- 중앙 상단: 하루 누적시간 (매일 오전 06:00 초기화) -->
+        <div class="fishing-top-center">
+          <div id="fishingElapsedTimer" class="fishing-elapsed-pill">⏱️ 00:00:00 / 06:00:00</div>
+          <div class="fishing-reset-sub">매일 오전 06:00 초기화</div>
+        </div>
+
+        <!-- 우측 상~하단 전체: 접속 중인 유저 리스트 (스크롤 지원) -->
+        <div class="fishing-right-column" onclick="event.stopPropagation()">
           <div id="fishingUsersOverlay" class="fishing-users-overlay">
             <div id="fishingOnlineCount" class="fishing-users-title">접속자 1명</div>
             <div id="fishingOnlineUsersList" class="fishing-online-users-list"></div>
@@ -1746,11 +1749,11 @@
     <div id="pwa-ios-arrow" style="display: none; position: absolute; bottom: -8px; left: 50%; transform: translateX(-50%); width: 0; height: 0; border-left: 8px solid transparent; border-right: 8px solid transparent; border-top: 8px solid #38bdf8;"></div>
   </div>
 
-  <script defer src="data.js?v=20.2"></script>
-  <script defer src="pixel_avatar.js?v=20.2"></script>
-  <script defer src="online.js?v=20.2"></script>
-  <script defer src="fishing.js?v=20.2"></script>
-  <script defer src="app.js?v=20.2"></script>
+  <script defer src="data.js?v=20.3"></script>
+  <script defer src="pixel_avatar.js?v=20.3"></script>
+  <script defer src="online.js?v=20.3"></script>
+  <script defer src="fishing.js?v=20.3"></script>
+  <script defer src="app.js?v=20.3"></script>
   <script type="module">
     const banner = document.getElementById("smart-pwa-banner");
     const iosContent = document.getElementById("pwa-ios-content");

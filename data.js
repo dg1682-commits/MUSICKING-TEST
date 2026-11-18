@@ -6856,6 +6856,7 @@ function _scoreItunesTrackCandidate(track, qObj) {
   if (isJunk) return -150;
 
   const normArtist = _normalizeItunesMatchText(track.artistName);
+  const baseArtist = _normalizeItunesMatchText(String(track.artistName || "").replace(/\([^)]*\)|\[[^\]]*\]|feat\..*|ft\..*/gi, ""));
   const normTrack = _normalizeItunesMatchText(track.trackName);
   const baseTrack = _normalizeItunesMatchText(String(track.trackName || "").replace(/\([^)]*\)|\[[^\]]*\]/g, ""));
 
@@ -6868,9 +6869,9 @@ function _scoreItunesTrackCandidate(track, qObj) {
 
   let artistScore = 0;
   for (const a of artistTerms) {
-    if (normArtist === a) {
+    if (normArtist === a || baseArtist === a) {
       artistScore = Math.max(artistScore, 80);
-    } else if (a.length >= 2 && (normArtist.includes(a) || a.includes(normArtist))) {
+    } else if (a.length >= 2 && (normArtist.includes(a) || a.includes(normArtist) || baseArtist.includes(a) || a.includes(baseArtist))) {
       artistScore = Math.max(artistScore, 55);
     }
   }
@@ -6879,14 +6880,14 @@ function _scoreItunesTrackCandidate(track, qObj) {
   for (const t of titleTerms) {
     if (normTrack === t || baseTrack === t) {
       titleScore = Math.max(titleScore, 70);
-    } else if (t.length >= 2 && (normTrack.includes(t) || baseTrack.includes(t))) {
+    } else if (t.length >= 2 && (normTrack.includes(t) || baseTrack.includes(t) || t.includes(baseTrack))) {
       titleScore = Math.max(titleScore, 45);
     }
   }
 
   let total = artistScore + titleScore;
-  if (artistTerms.length > 0 && artistScore === 0) total -= 80;
-  if (titleTerms.length > 0 && titleScore === 0) total -= 80;
+  if (artistTerms.length > 0 && artistScore === 0) total -= 25;
+  if (titleTerms.length > 0 && titleScore === 0) total -= 25;
 
   if (/\b(live|concert|remix)\b/i.test(combinedRaw) || /(라이브|콘서트|실황|리믹스)/i.test(combinedRaw)) {
     total -= 15;
@@ -6899,9 +6900,10 @@ async function fetchItunesSongMeta(qOrQuery) {
   if (queries.length === 0) return { previewUrl: null, artworkUrl: "" };
 
   const isStructured = typeof qOrQuery === "object" && qOrQuery !== null && Boolean(qOrQuery.title);
-  const minScore = isStructured ? 80 : 10;
+  const minScore = isStructured ? 45 : 10;
   let best = null;
   let bestScore = -Infinity;
+  let fallbackNonJunk = null;
 
   for (const rawQuery of queries) {
     const encoded = encodeURIComponent(rawQuery);
@@ -6917,12 +6919,15 @@ async function fetchItunesSongMeta(qOrQuery) {
         if (!data || !Array.isArray(data.results)) continue;
         for (const r of data.results) {
           const score = _scoreItunesTrackCandidate(r, qOrQuery);
+          if (r && r.previewUrl && score > -100 && !fallbackNonJunk) {
+            fallbackNonJunk = r;
+          }
           if (score > bestScore) {
             bestScore = score;
             best = r;
           }
         }
-        if (best && bestScore >= 120) {
+        if (best && bestScore >= 110) {
           return {
             previewUrl: best.previewUrl,
             artworkUrl: (best.artworkUrl100 || "").replace("100x100bb", "300x300bb"),
@@ -6934,12 +6939,13 @@ async function fetchItunesSongMeta(qOrQuery) {
     }
   }
 
-  if (best && best.previewUrl && bestScore >= minScore) {
+  const chosen = (best && best.previewUrl && bestScore >= minScore) ? best : fallbackNonJunk;
+  if (chosen && chosen.previewUrl) {
     return {
-      previewUrl: best.previewUrl,
-      artworkUrl: (best.artworkUrl100 || "").replace("100x100bb", "300x300bb"),
-      trackName: best.trackName,
-      artistName: best.artistName
+      previewUrl: chosen.previewUrl,
+      artworkUrl: (chosen.artworkUrl100 || "").replace("100x100bb", "300x300bb"),
+      trackName: chosen.trackName,
+      artistName: chosen.artistName
     };
   }
 

@@ -1549,7 +1549,7 @@ function updateShopPreviewCanvas() {
 
   if (sel.cat === "game_item") {
     const cnt = getConsumableCount(sel.id);
-    if (priceBadgeEl) priceBadgeEl.textContent = `💿 ${sel.price.toLocaleString()} CD · 보유 ${cnt}개`;
+    if (priceBadgeEl) priceBadgeEl.textContent = `보유 ${cnt}개`;
     confirmBtn.textContent = "🛍️ 1개 구매하기";
     confirmBtn.className = "btn btn-gold";
     confirmBtn.onclick = () => purchaseConsumableShopItem("game_item", sel);
