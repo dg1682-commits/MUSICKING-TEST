@@ -591,7 +591,7 @@ window.processInAppBackStep = function (fromOnestore = false) {
     return true;
   }
 
-  if (["setupScreen", "plazaScreen", "resultScreen", "shopScreen", "rankingScreen", "socialScreen"].includes(state.currentScreen)) {
+  if (["setupScreen", "plazaScreen", "playHubScreen", "bagScreen", "resultScreen", "shopScreen", "rankingScreen", "socialScreen"].includes(state.currentScreen)) {
     showHome();
     if (!fromOnestore) armAppBackGuard(true);
     return true;
@@ -1274,7 +1274,7 @@ window.syncHomeCornerFloatingButtons = function () {
   const rightX = Math.round(sRect.right - hRect.right + 12);
   const gapY = 40;
 
-  // 좌측 세로 일렬: ? -> 🔊 -> 🎉
+  // 좌측 세로 일렬: ? -> 🔊 -> 🔔
   if (helpBtn) {
     helpBtn.style.top = "10px";
     helpBtn.style.left = "10px";
@@ -1286,16 +1286,19 @@ window.syncHomeCornerFloatingButtons = function () {
     soundBtn.style.left = `${leftX}px`;
     soundBtn.style.top = `${topBase + gapY}px`;
   }
-  if (eventBtn) {
-    eventBtn.classList.remove("hidden");
-    eventBtn.style.left = `${leftX}px`;
-    eventBtn.style.top = `${topBase + gapY * 2}px`;
+  if (notiBtn) {
+    notiBtn.classList.remove("hidden");
+    notiBtn.style.right = "auto";
+    notiBtn.style.left = `${leftX}px`;
+    notiBtn.style.top = `${topBase + gapY * 2}px`;
   }
 
-  // 우측 세로 일렬: 🔔 -> 💿 -> 🎁 -> 📅
-  if (notiBtn) {
-    notiBtn.style.top = `${topBase}px`;
-    notiBtn.style.right = `${rightX}px`;
+  // 우측 세로 일렬: 🎉 -> 💿 -> 🎁 -> 📅
+  if (eventBtn) {
+    eventBtn.classList.remove("hidden");
+    eventBtn.style.left = "auto";
+    eventBtn.style.right = `${rightX}px`;
+    eventBtn.style.top = `${topBase}px`;
   }
   if (dailyCdBtn) {
     dailyCdBtn.classList.remove("hidden");
@@ -1365,6 +1368,8 @@ window.switchScreen = function (targetId, opts = {}) {
   [
     "loginScreen",
     "homeScreen",
+    "playHubScreen",
+    "bagScreen",
     "setupScreen",
     "gameScreen",
     "judgeScreen",

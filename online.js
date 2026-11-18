@@ -1541,6 +1541,7 @@ function updateShopPreviewCanvas() {
   if (sel.cat === "game_item") {
     const cnt = getConsumableCount(sel.id);
     if (priceBadgeEl) priceBadgeEl.textContent = `💿 ${sel.price.toLocaleString()} CD · 보유 ${cnt}개`;
+    descEl.innerHTML = `<span class="badge primary" style="font-size:0.68rem; margin-right:4px;">${sel.scopeLabel || "공용"}</span>` + (sel.desc || "").replace(/\n/g, "<br/>");
     confirmBtn.textContent = "🛍️ 1개 구매하기";
     confirmBtn.className = "btn btn-gold";
     confirmBtn.onclick = () => purchaseConsumableShopItem("game_item", sel);
@@ -1969,8 +1970,6 @@ window.renderShopCategory = function (cat) {
       } else if (cat === "fishing_bait" && Number(item.cdMultiplier) > 1) {
         const pct = Math.round((Number(item.cdMultiplier) - 1) * 100);
         buffHtml = `<span class="apf-tile-buff is-cd">CD +${pct}%</span>`;
-      } else if (isGameItemCat) {
-        buffHtml = `<span class="apf-tile-buff">${item.scopeLabel || "아이템"} · ${cnt}개</span>`;
       }
       const thumbSize = isFishingGearCat ? 40 : 52;
       const iconEmoji = isGameItemCat ? (item.name.split(" ")[0] || "🎒") : "";
@@ -2333,8 +2332,11 @@ window.syncDmNotiBadgeUI = function () {
   if (!btn || !badge) return;
   const count = dmNotiState.unreadList.length;
   const curScreen = typeof state !== "undefined" ? state.currentScreen : "homeScreen";
+  const isHome = curScreen === "homeScreen";
   const allowScreen = ["homeScreen", "setupScreen", "plazaScreen", "rankingScreen", "socialScreen"].includes(curScreen);
-  btn.classList.toggle("hidden", !(userState.isLoggedIn && count > 0 && allowScreen));
+  const shouldShowBtn = isHome || (userState.isLoggedIn && count > 0 && allowScreen);
+  btn.classList.toggle("hidden", !shouldShowBtn);
+  badge.classList.toggle("hidden", count <= 0);
   badge.textContent = count > 99 ? "99+" : String(count);
   if (typeof syncHomeCornerFloatingButtons === "function") {
     syncHomeCornerFloatingButtons();

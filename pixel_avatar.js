@@ -2650,10 +2650,49 @@ function renderItemThumbnail(canvas, category, item) {
     renderApfWideBackground(ctx, 212, 204, item, { isThumb: true });
     ctx.restore();
     fillRoundRect(ctx, 14, 18, 212, 204, 26, null, outline, 7);
+  } else if (item.id === "nickname_ticket") {
+    // 명찰 (ID 배지) 아이콘
+    fillRoundRect(ctx, 102, 26, 36, 26, 8, "#64748b", outline, 6);
+    fillRoundRect(ctx, 32, 48, 176, 140, 22, "#ffffff", outline, 8);
+    fillRoundRect(ctx, 32, 48, 176, 36, 18, "#38bdf8", outline, 7);
+    // 왼쪽 미니 프로필 실루엣
+    fillRoundRect(ctx, 48, 100, 52, 66, 12, "#dbeafe", outline, 5);
+    ctx.fillStyle = "#3b82f6";
+    ctx.beginPath(); ctx.arc(74, 122, 13, 0, Math.PI * 2); ctx.fill();
+    ctx.beginPath(); ctx.arc(74, 158, 20, Math.PI, 0); ctx.fill();
+    // 오른쪽 이름 줄
+    fillRoundRect(ctx, 114, 106, 76, 14, 6, "#1e293b");
+    fillRoundRect(ctx, 114, 130, 58, 10, 5, "#94a3b8");
+    fillRoundRect(ctx, 114, 150, 44, 10, 5, "#cbd5e1");
   } else {
-    fillRoundRect(ctx, 24, 66, 192, 108, 22, "#fef08a", "#b45309", 9);
-    ctx.fillStyle = "#b45309"; ctx.font = "900 32px sans-serif"; ctx.textAlign = "center";
-    ctx.fillText(item.id === "gender_ticket" ? "⚧️ 10000" : "🎫 5000", 120, 132);
+    // 성별 변경권 (남자 캐릭 <-> 여자 캐릭 전환 아이콘)
+    // 왼쪽 남자 캐릭터 미니 헤드
+    ctx.fillStyle = "#38bdf8"; ctx.strokeStyle = outline; ctx.lineWidth = 6;
+    ctx.beginPath(); ctx.arc(64, 118, 34, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = "#fffdf9";
+    ctx.beginPath(); ctx.arc(64, 122, 24, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = "#1e293b";
+    ctx.beginPath(); ctx.arc(64, 106, 24, Math.PI, 0); ctx.fill();
+    ctx.beginPath(); ctx.arc(56, 122, 3.5, 0, Math.PI * 2); ctx.arc(72, 122, 3.5, 0, Math.PI * 2); ctx.fill();
+
+    // 오른쪽 여자 캐릭터 미니 헤드 (리본)
+    ctx.fillStyle = "#fb7185"; ctx.strokeStyle = outline; ctx.lineWidth = 6;
+    ctx.beginPath(); ctx.arc(176, 118, 34, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = "#fffdf9";
+    ctx.beginPath(); ctx.arc(176, 122, 24, 0, Math.PI * 2); ctx.fill(); ctx.stroke();
+    ctx.fillStyle = "#451a03";
+    ctx.beginPath(); ctx.arc(176, 106, 24, Math.PI, 0); ctx.fill();
+    ctx.fillStyle = "#f43f5e";
+    ctx.beginPath(); ctx.arc(192, 96, 8, 0, Math.PI * 2); ctx.fill();
+    ctx.fillStyle = "#1e293b";
+    ctx.beginPath(); ctx.arc(168, 122, 3.5, 0, Math.PI * 2); ctx.arc(184, 122, 3.5, 0, Math.PI * 2); ctx.fill();
+
+    // 중앙 왕복 화살표 (↔)
+    ctx.strokeStyle = "#f59e0b"; ctx.lineWidth = 8; ctx.lineCap = "round";
+    ctx.beginPath(); ctx.moveTo(100, 118); ctx.lineTo(140, 118); ctx.stroke();
+    ctx.fillStyle = "#f59e0b";
+    ctx.beginPath(); ctx.moveTo(96, 118); ctx.lineTo(110, 106); ctx.lineTo(110, 130); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.moveTo(144, 118); ctx.lineTo(130, 106); ctx.lineTo(130, 130); ctx.closePath(); ctx.fill();
   }
 
   ctx.restore();
